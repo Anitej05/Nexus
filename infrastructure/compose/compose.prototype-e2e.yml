@@ -1,0 +1,37 @@
+services:
+  postgres:
+    ports: !override ["127.0.0.1:${NEXUS_PROTOTYPE_E2E_POSTGRES_PORT}:5432"]
+  keycloak:
+    ports: !override ["127.0.0.1:${NEXUS_PROTOTYPE_E2E_KEYCLOAK_PORT}:8080"]
+  opa:
+    ports: !override ["127.0.0.1:${NEXUS_PROTOTYPE_E2E_OPA_PORT}:8181"]
+  api:
+    ports: !override ["127.0.0.1:${NEXUS_PROTOTYPE_E2E_API_PORT}:8000"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      opa:
+        condition: service_started
+      opa-health-probe:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      NEXUS_DATABASE_URL: ${NEXUS_PROTOTYPE_E2E_DATABASE_INTERNAL_URL}
+      NEXUS_MIGRATION_DATABASE_URL: ${NEXUS_PROTOTYPE_E2E_MIGRATION_INTERNAL_URL}
+      NEXUS_OIDC_ISSUER: http://127.0.0.1:${NEXUS_PROTOTYPE_E2E_KEYCLOAK_PORT}/realms/nexus
+      NEXUS_PROTOTYPE_LLM_BASE_URL: http://host.docker.internal:${NEXUS_PROTOTYPE_E2E_LLM_PORT}/v1
+      NEXUS_PROTOTYPE_LLM_MODEL: deepseek-ai/DeepSeek-V4-Flash-0731
+      NEXUS_PROTOTYPE_LLM_API_KEY: ${NEXUS_PROTOTYPE_LLM_API_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live', timeout=5)\""]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 5s
+
+networks:
+  nexus:
+    name: ${NEXUS_PROTOTYPE_E2E_NETWORK}
