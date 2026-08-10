@@ -1,0 +1,59 @@
+{
+  "nexus": {
+    "policy_revision": "1.0.0",
+    "operations": [
+      "tenant.admin", "membership.manage", "ontology.read", "ontology.write",
+      "ontology.schema.publish", "entity.resolve", "branch.read", "branch.create",
+      "branch.write", "branch.submit", "branch.approve", "branch.merge", "model.read",
+      "model.train", "model.promote", "workflow.read", "workflow.design",
+      "workflow.publish", "workflow.execute", "agent.read", "agent.publish",
+      "agent.publish_self", "agent.grant_scope", "agent.retire", "action.read",
+      "action.propose", "action.approve", "action.execute", "policy.read", "policy.write",
+      "audit.read"
+    ],
+    "roles": {
+      "platform_admin": [
+        "tenant.admin", "membership.manage", "ontology.read", "ontology.write",
+        "ontology.schema.publish", "entity.resolve", "branch.read", "branch.create",
+        "branch.write", "branch.submit", "branch.approve", "branch.merge", "model.read",
+        "model.train", "model.promote", "workflow.read", "workflow.design",
+        "workflow.publish", "workflow.execute", "agent.read", "agent.publish",
+        "agent.grant_scope", "agent.retire", "action.read", "action.propose",
+        "action.approve", "action.execute", "policy.read", "policy.write", "audit.read"
+      ],
+      "data_steward": [
+        "ontology.write", "ontology.schema.publish", "entity.resolve", "branch.read",
+        "branch.create", "branch.write", "branch.submit", "audit.read"
+      ],
+      "ml_engineer": [
+        "ontology.read", "model.read", "model.train", "model.promote", "branch.read",
+        "branch.create", "branch.write", "branch.submit", "workflow.read"
+      ],
+      "workflow_designer": [
+        "ontology.read", "workflow.read", "workflow.design", "workflow.publish",
+        "agent.read", "agent.publish", "branch.read", "branch.create", "branch.write",
+        "branch.submit"
+      ],
+      "operator": [
+        "ontology.read", "workflow.read", "workflow.execute", "action.read",
+        "action.propose", "action.execute", "agent.read"
+      ],
+      "approver": [
+        "ontology.read", "branch.read", "branch.approve", "branch.merge", "model.read",
+        "workflow.read", "action.read", "action.approve", "audit.read"
+      ],
+      "auditor": [
+        "ontology.read", "branch.read", "model.read", "workflow.read", "agent.read",
+        "action.read", "policy.read", "audit.read"
+      ],
+      "viewer": [
+        "ontology.read", "branch.read", "model.read", "workflow.read", "agent.read",
+        "action.read"
+      ]
+    },
+    "sensitivity_labels": ["public", "internal", "confidential", "restricted"],
+    "redaction_safe_operations": ["ontology.read"],
+    "risk_rank": {"R0": 0, "R1": 1, "R2": 2, "R3": 3, "R4": 4},
+    "agent_hard_denials": ["policy.write", "agent.publish_self"]
+  }
+}
