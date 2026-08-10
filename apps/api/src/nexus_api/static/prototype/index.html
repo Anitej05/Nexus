@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
+  <title>NEXUS · Operational Shift</title>
+  <style>
+    :root {
+      --bg: #06131a; --surface: #0a2029; --surface-2: #0d2933; --surface-3: #112f39;
+      --line: rgba(180, 215, 218, .18); --line-strong: rgba(180, 215, 218, .34);
+      --text: #e5efed; --muted: #9cb3b6; --cyan: #64e0de; --blue: #67a4ff;
+      --amber: #ffbf3f; --danger: #ff746f; --good: #6ce99b; --violet: #d383ff;
+      --radius: 9px; --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body { margin: 0; min-width: 320px; overflow-x: hidden; background: radial-gradient(circle at 60% -20%, #133d46, transparent 34rem), var(--bg); color: var(--text); font-family: var(--font); }
+    button, a { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    .skip { position: fixed; z-index: 50; top: -4rem; left: 1rem; padding: .7rem .9rem; border-radius: 0 0 6px 6px; background: var(--text); color: var(--bg); }
+    .skip:focus { top: 0; }
+    .shell { width: min(100%, 1536px); min-width: 0; margin: auto; padding: 0 16px 18px; }
+    .topbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; min-width: 0; min-height: 58px; align-items: center; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; padding-right: 18px; font-size: .93rem; font-weight: 800; letter-spacing: .14em; }
+    .brand-mark { display: grid; grid-template-columns: repeat(2, 6px); gap: 3px; transform: rotate(45deg); }
+    .brand-mark i { width: 6px; height: 6px; background: var(--cyan); }
+    .brand-mark i:nth-child(2), .brand-mark i:nth-child(3) { background: transparent; border: 1px solid var(--cyan); }
+    .context { display: flex; min-width: 0; align-self: stretch; }
+    .context-item { display: grid; align-content: center; min-width: 150px; padding: 0 20px; border-left: 1px solid var(--line); color: var(--muted); font-size: .68rem; line-height: 1.35; }
+    .context-item strong { overflow: hidden; color: var(--text); font-size: .75rem; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+    .scope-flags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .flag, .state { display: inline-flex; align-items: center; gap: 6px; min-height: 25px; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 5px; font-size: .64rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+    .flag { color: var(--amber); border-color: rgba(255,191,63,.48); }
+    .flag--cyan { color: var(--cyan); border-color: rgba(100,224,222,.45); }
+    .flag--blue { color: var(--blue); border-color: rgba(103,164,255,.45); }
+    .state::before { width: 7px; height: 7px; border-radius: 50%; background: currentColor; content: ""; }
+    .tone-waiting { color: var(--amber); } .tone-good { color: var(--good); } .tone-danger { color: var(--danger); } .tone-muted { color: var(--muted); }
+    .mode-notice { display: flex; min-height: 37px; align-items: center; gap: 10px; margin: 8px 0; padding: 7px 10px; border: 1px solid rgba(255,191,63,.38); border-radius: var(--radius); background: rgba(255,191,63,.07); color: #d9c38f; font-size: .72rem; }
+    .mode-notice strong { color: var(--amber); font-size: .67rem; letter-spacing: .08em; white-space: nowrap; }
+    .mode-notice[data-mode="live"] { border-color: rgba(108,233,155,.42); background: rgba(108,233,155,.07); }
+    .mode-notice[data-mode="live"] strong { color: var(--good); }
+    .mode-notice[data-mode="loading"] { border-color: rgba(103,164,255,.42); background: rgba(103,164,255,.07); }
+    .mode-notice[data-mode="loading"] strong { color: var(--blue); }
+    .mode-notice[data-mode="unavailable"] { border-color: rgba(255,116,111,.46); background: rgba(255,116,111,.08); }
+    .mode-notice[data-mode="unavailable"] strong { color: var(--danger); }
+    .workspace-head { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 8px 2px 10px; }
+    .workspace-head h1 { margin: 0; font-size: 1.45rem; line-height: 1.1; letter-spacing: -.035em; }
+    .workspace-head p { margin: 5px 0 0; color: var(--muted); font-size: .73rem; }
+    .run-ref { color: var(--muted); font-size: .65rem; text-align: right; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .run-ref code { display: block; max-width: 360px; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
+    .upper { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .52fr); min-width: 0; gap: 10px; }
+    .lower { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .85fr); min-width: 0; gap: 10px; margin-top: 10px; }
+    .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(155deg, rgba(13,41,51,.96), rgba(6,24,32,.96)); }
+    .panel-head { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font-size: .78rem; font-weight: 760; letter-spacing: .025em; text-transform: uppercase; }
+    .panel-head span { color: var(--muted); font-size: .65rem; }
+    .graph-scroll { max-width: 100%; min-width: 0; overflow-x: auto; padding: 7px 10px 2px; scrollbar-color: #38626b transparent; }
+    .graph-scroll:focus-visible { outline: 3px solid var(--amber); outline-offset: -4px; box-shadow: inset 0 0 0 1px #07151b, 0 0 0 2px rgba(255,191,63,.28); }
+    .graph-scroll svg { display: block; width: 100%; min-width: 700px; height: 270px; }
+    .graph-scroll-help { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .edge { fill: none; stroke: #3c6470; stroke-width: 1.5; marker-end: url(#arrow); }
+    .edge--supply { stroke: var(--cyan); } .edge--it { stroke: var(--blue); stroke-dasharray: 5 4; }
+    .node rect, .node circle { fill: #0b2731; stroke: #426b75; stroke-width: 1.5; }
+    .node--supply rect, .node--supply circle { stroke: var(--cyan); } .node--it rect, .node--it circle { stroke: var(--blue); }
+    .node--risk rect { fill: #3a2830; stroke: var(--danger); }
+    .node text { fill: var(--text); font-size: 11px; font-weight: 700; } .node .type { fill: var(--muted); font-size: 8px; letter-spacing: .08em; }
+    .graph-foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 6px 12px 9px; color: var(--muted); font-size: .64rem; }
+    .legend { display: inline-flex; align-items: center; gap: 5px; } .legend i { width: 9px; height: 9px; border: 1px solid var(--cyan); } .legend--it i { border-color: var(--blue); }
+    .uncertainty-bar { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0 12px 10px; padding: 8px; border: 1px solid rgba(255,191,63,.55); border-radius: 5px; color: #f3d795; font-size: .7rem; text-align: center; }
+    .rail { display: grid; gap: 10px; align-content: start; }
+    .rail-block { border: 1px solid var(--line); border-radius: var(--radius); background: rgba(9,31,40,.86); }
+    .rail-title { display: flex; justify-content: space-between; padding: 9px 11px 7px; color: var(--muted); font-size: .63rem; font-weight: 760; letter-spacing: .06em; text-transform: uppercase; }
+    .signal { padding: 0 11px 10px; }
+    .signal + .signal { padding-top: 10px; border-top: 1px solid var(--line); }
+    .signal-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .signal h3 { margin: 0; font-size: .78rem; } .score { color: var(--danger); font-size: 1.25rem; font-weight: 800; letter-spacing: -.05em; }
+    .meter { position: relative; height: 6px; margin: 6px 0; overflow: hidden; border-radius: 4px; background: #1a3a43; }
+    .meter i { display: block; width: var(--score); height: 100%; background: linear-gradient(90deg, var(--amber), var(--danger)); }
+    .signal p { margin: 0; color: var(--muted); font-size: .64rem; line-height: 1.45; }
+    .llm { display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: center; padding: 9px 11px 11px; }
+    .spinner { width: 22px; height: 22px; border: 2px dotted var(--blue); border-radius: 50%; }
+    .llm[data-status="available"] .spinner { border-color: var(--good); border-style: solid; }
+    .llm[data-status="unavailable"] .spinner { border-color: var(--muted); }
+    .llm[data-status="timeout"] .spinner { border-color: var(--amber); border-style: dashed; }
+    .llm[data-status="invalid_output"] .spinner, .llm[data-status="uncited"] .spinner { border-color: var(--danger); border-style: double; }
+    .llm strong { display: block; font-size: .72rem; } .llm span { color: var(--muted); font-size: .63rem; }
+    .uncertainty { margin: 0 10px 10px; padding: 9px; border: 1px solid rgba(255,191,63,.56); border-radius: 5px; color: #edd59f; font-size: .68rem; line-height: 1.4; }
+    .timeline { list-style: none; margin: 0; padding: 0; }
+    .timeline li { display: grid; grid-template-columns: 62px 145px minmax(0,1fr) 62px; min-height: 56px; align-items: center; border-bottom: 1px solid var(--line); font-size: .69rem; }
+    .timeline li:last-child { border-bottom: 0; }
+    .timeline time { padding-left: 12px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .agent { display: flex; align-items: center; gap: 8px; font-weight: 710; }
+    .agent-dot { display: inline-grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; border: 1px solid var(--cyan); border-radius: 50%; color: var(--cyan); font-size: .7rem; }
+    .agent-dot--it { border-color: var(--blue); color: var(--blue); } .agent-dot--critic { border-color: var(--violet); color: var(--violet); } .agent-dot--llm { border-color: var(--amber); color: var(--amber); }
+    .finding { min-width: 0; padding: 7px 10px; color: #bfd0d0; line-height: 1.45; }
+    .evidence { color: var(--muted); text-align: center; } .evidence strong { display: block; color: var(--text); font-size: .8rem; }
+    .governance { display: grid; gap: 8px; }
+    .plan { border-color: rgba(255,191,63,.45); }
+    .plan .panel-head { border-bottom-color: rgba(255,191,63,.35); color: var(--amber); }
+    .plan-body { padding: 10px 12px; }
+    .plan-grid { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 12px; align-items: center; }
+    .risk-class { font-size: 1.55rem; font-weight: 820; color: var(--amber); }
+    .hash { display: block; min-width: 0; overflow-wrap: anywhere; color: #c1d1d0; font-size: .63rem; line-height: 1.4; }
+    .plan-summary { margin: 9px 0; color: var(--muted); font-size: .67rem; line-height: 1.45; }
+    .control-set { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .button { min-height: 34px; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 5px; background: transparent; color: var(--text); font-size: .67rem; font-weight: 760; }
+    .button:hover:not(:disabled) { border-color: var(--cyan); }
+    .button--primary { border-color: var(--amber); background: var(--amber); color: #241700; }
+    .button--danger { border-color: rgba(255,116,111,.55); color: #ffaaa7; }
+    .button[aria-pressed="true"] { border-color: var(--cyan); background: rgba(100,224,222,.12); color: var(--cyan); }
+    .locked { padding: 9px; border: 1px solid rgba(255,116,111,.46); border-radius: 5px; background: rgba(255,116,111,.08); color: #ffb4b0; font-size: .68rem; line-height: 1.4; }
+    .notice { min-height: 16px; margin: 8px 0 0; color: var(--muted); font-size: .64rem; line-height: 1.4; }
+    .connect { display:flex; align-items:center; gap:8px; padding:8px 0; }
+    .connect label { color:var(--muted); font-size:.64rem; }
+    .connect input { width:min(380px,55vw); padding:7px 9px; border:1px solid var(--line-strong); border-radius:5px; background:#081115; color:var(--text); }
+    .status-card { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; border: 1px solid rgba(255,191,63,.42); border-radius: 5px; overflow: hidden; }
+    .status-card div { padding: 8px; background: rgba(255,191,63,.06); }
+    .status-card span { display: block; color: var(--muted); font-size: .57rem; text-transform: uppercase; } .status-card strong { font-size: .78rem; }
+    .verification { display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: center; padding: 9px 11px; border: 1px solid rgba(108,233,155,.48); border-radius: 5px; background: rgba(108,233,155,.07); }
+    .verify-icon { display: grid; width: 27px; height: 27px; place-items: center; border: 1px solid var(--good); border-radius: 50%; color: var(--good); }
+    .verification strong { display: block; color: var(--good); font-size: .7rem; } .verification span { color: var(--muted); font-size: .61rem; }
+    .confidence { color: var(--good); font-size: 1rem; font-weight: 800; }
+    .audit { display: flex; align-items: center; justify-content: space-between; min-height: 35px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--muted); font-size: .67rem; }
+    .audit button { color: var(--cyan); } .audit strong { color: var(--text); }
+    [hidden] { display: none !important; }
+    .sr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    @media (max-width: 1050px) { .topbar { grid-template-columns: auto 1fr; } .scope-flags { grid-column: 1 / -1; justify-content: flex-start; padding: 7px 0; border-top: 1px solid var(--line); } .upper, .lower { grid-template-columns: minmax(0,1fr); } .rail { grid-template-columns: repeat(3,minmax(0,1fr)); } .governance { grid-template-columns: repeat(2,minmax(0,1fr)); } .plan { grid-column: 1 / -1; } }
+    @media (max-width: 700px) { .shell { width: 100%; max-width: 100%; overflow: hidden; padding: 0 10px 14px; } main, .topbar, .context, .scope-flags, .workspace-head, .upper, .lower, .rail, .governance, .panel { width: 100%; max-width: 100%; min-width: 0; } .topbar { display: flex; min-height: auto; flex-wrap: wrap; padding: 9px 0; } .brand { width: 100%; padding: 0 0 8px; } .context { overflow: hidden; border-top: 1px solid var(--line); } .context-item { min-width: 0; flex: 1; padding: 7px 8px 0 0; border-left: 0; } .scope-flags { display: grid; grid-template-columns: repeat(2, max-content); justify-content: start; } .mode-notice { align-items: flex-start; flex-direction: column; gap: 3px; } .workspace-head { align-items: flex-start; flex-direction: column; } .workspace-head p { max-width: 100%; overflow-wrap: anywhere; } .run-ref { max-width: 100%; text-align: left; } .run-ref code { max-width: 100%; } .upper, .lower, .rail, .governance { grid-template-columns: minmax(0,1fr); } .plan { grid-column: auto; } .timeline li { grid-template-columns: 55px 120px minmax(0,1fr); } .evidence { display: none; } .graph-scroll { width: 100%; max-width: 100%; contain: inline-size; } .graph-scroll svg { min-width: 660px; } .graph-scroll-help { position: static; display: flex; width: auto; height: auto; align-items: center; gap: 6px; margin: 0 10px 7px; padding: 5px 7px; overflow: visible; clip: auto; border: 1px solid rgba(100,224,222,.32); border-radius: 4px; background: rgba(100,224,222,.06); color: var(--cyan); font-size: .61rem; line-height: 1.35; white-space: normal; } }
+    @media (max-width: 430px) { .flag { font-size: .57rem; } .context { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); } .context-item { padding: 6px 8px 1px 0; } .context-item:first-child { grid-column: 1 / -1; } .workspace-head h1 { font-size: 1.25rem; } .timeline li { grid-template-columns: 48px 100px minmax(0,1fr); font-size: .62rem; } .agent-dot { width: 23px; height: 23px; } .panel-head h2 { font-size: .7rem; } .status-card { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#dashboard">Skip to operational dashboard</a>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>NEXUS</div>
+      <div class="context" aria-label="Run context">
+        <div class="context-item">Scenario<strong>storm-and-checkout-shift-v1</strong></div>
+        <div class="context-item">Tenant<strong id="tenant-name">Authenticated tenant</strong></div>
+        <div class="context-item">Run state<strong id="top-state">Representative preview</strong></div>
+      </div>
+      <div class="scope-flags" aria-label="Prototype scope"><span class="flag">Prototype</span><span class="flag flag--cyan">Read-only projection</span><span class="flag flag--blue">Simulated action</span></div>
+    </header>
+
+    <div class="mode-notice" id="mode-notice" data-mode="demo" role="status"><strong id="mode-title">Demo data / no audit write</strong><span id="mode-copy">Representative fixture only. Guided state previews are non-authenticated, non-persistent, and never call governance endpoints.</span></div>
+
+    <section class="connect" aria-label="Ephemeral governed-run connection">
+      <label for="bearer-token">Ephemeral bearer token</label>
+      <input id="bearer-token" type="password" autocomplete="off" spellcheck="false" aria-describedby="connect-help">
+      <button class="button" id="connect-button" type="button">Connect run</button>
+      <span class="notice" id="connect-help">Held in memory for this page only; never placed in URLs or browser storage.</span>
+    </section>
+
+    <main id="dashboard" tabindex="-1">
+      <header class="workspace-head"><div><h1>Operational Shift</h1><p>Typed operational graph · model signals · multi-agent investigation · governed simulated action</p></div><div class="run-ref">Run reference<code id="run-id">018f0000-0000-7000-8000-000000000901</code></div></header>
+
+      <section class="upper" aria-label="Graph and analytical signals">
+        <article class="panel">
+          <header class="panel-head"><h2>Typed operational graph</h2><span id="seed-digest">seed ab6630b9…196f0e06 · 12 nodes</span></header>
+          <div class="graph-scroll" id="graph-scroll" role="img" tabindex="0" aria-describedby="graph-scroll-instruction" aria-label="A read-only typed graph shows a supply path from PORT-MAA through shipments and a component to purchase orders, plus a separate IT path from deployment DEP-882 through checkout and payments to the ledger database.">
+            <svg viewBox="0 0 900 270" aria-hidden="true">
+              <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#4f7b84"></path></marker></defs>
+              <path class="edge edge--supply" d="M112 82C158 82 168 42 220 42"></path><path class="edge edge--supply" d="M112 82C158 82 168 82 220 82"></path><path class="edge edge--supply" d="M112 82C158 82 168 122 220 122"></path><path class="edge edge--supply" d="M318 82H385"></path><path class="edge edge--supply" d="M485 82H553"></path><path class="edge edge--supply" d="M652 82C706 82 714 52 766 52"></path><path class="edge edge--supply" d="M652 82C706 82 714 112 766 112"></path>
+              <path class="edge edge--it" d="M112 210H250"></path><path class="edge edge--it" d="M352 210H462"></path><path class="edge edge--it" d="M564 210H674"></path>
+              <g class="node node--risk"><rect x="15" y="57" width="98" height="50" rx="7"></rect><text class="type" x="26" y="76">PORT</text><text x="26" y="94">PORT-MAA</text></g>
+              <g class="node node--supply"><rect x="220" y="21" width="98" height="42" rx="7"></rect><text class="type" x="230" y="38">SHIPMENT</text><text x="230" y="54">SHP-0042</text></g><g class="node node--supply"><rect x="220" y="61" width="98" height="42" rx="7"></rect><text class="type" x="230" y="78">SHIPMENT</text><text x="230" y="94">SHP-0047</text></g><g class="node node--supply"><rect x="220" y="101" width="98" height="42" rx="7"></rect><text class="type" x="230" y="118">SHIPMENT</text><text x="230" y="134">SHP-0051</text></g>
+              <g class="node node--risk"><rect x="385" y="57" width="100" height="50" rx="7"></rect><text class="type" x="396" y="76">COMPONENT</text><text x="396" y="94">CMP-SENSOR-A</text></g><g class="node node--supply"><rect x="553" y="57" width="99" height="50" rx="7"></rect><text class="type" x="564" y="76">PURCHASE ORDER</text><text x="564" y="94">PO-1107</text></g><g class="node node--supply"><rect x="766" y="27" width="90" height="45" rx="7"></rect><text class="type" x="777" y="44">ORDER</text><text x="777" y="61">PO-1112</text></g><g class="node node--supply"><rect x="766" y="87" width="90" height="45" rx="7"></rect><text class="type" x="777" y="104">SHIFT</text><text x="777" y="121">Priority</text></g>
+              <g class="node node--risk"><rect x="15" y="185" width="98" height="50" rx="7"></rect><text class="type" x="26" y="204">DEPLOYMENT</text><text x="26" y="222">DEP-882</text></g><g class="node node--it"><rect x="250" y="185" width="102" height="50" rx="7"></rect><text class="type" x="261" y="204">SERVICE</text><text x="261" y="222">svc-checkout</text></g><g class="node node--it"><rect x="462" y="185" width="102" height="50" rx="7"></rect><text class="type" x="473" y="204">SERVICE</text><text x="473" y="222">svc-payments</text></g><g class="node node--it"><rect x="674" y="185" width="102" height="50" rx="7"></rect><text class="type" x="685" y="204">DATABASE</text><text x="685" y="222">db-ledger</text></g>
+            </svg>
+          </div>
+          <p class="graph-scroll-help" id="graph-scroll-instruction"><span aria-hidden="true">&#8596;</span> Scroll horizontally to inspect all graph nodes; arrow keys work when this panel is focused.</p>
+          <div class="graph-foot"><span class="legend"><i></i>Supply path</span><span class="legend legend--it"><i></i>IT path</span><span>Read-only seeded projection · no authoritative ontology write</span></div>
+          <div class="uncertainty-bar"><span aria-hidden="true">△</span><strong>Correlated operational priority, not a proven causal link.</strong></div>
+        </article>
+
+        <aside class="rail" aria-label="Risk, LLM, and uncertainty status">
+          <section class="rail-block"><div class="rail-title"><span>Risk signals</span><span>Deterministic</span></div><div class="signal"><div class="signal-top"><h3>Supply delay risk</h3><span class="score">0.91</span></div><div class="meter" aria-label="Supply risk 0.91, threshold 0.80"><i style="--score:91%"></i></div><p>Threshold 0.80 · PORT-MAA → SHP-0042 → CMP-SENSOR-A</p></div><div class="signal"><div class="signal-top"><h3>Incident risk</h3><span class="score">0.94</span></div><div class="meter" aria-label="Incident risk 0.94, threshold 0.80"><i style="--score:94%"></i></div><p>Threshold 0.80 · DEP-882 → svc-checkout → svc-payments</p></div></section>
+          <section class="rail-block"><div class="rail-title"><span>Advisory LLM status</span><span>Non-authoritative</span></div><div class="llm" id="llm-status" data-status="unavailable" aria-label="Advisory LLM status: unavailable"><i class="spinner" aria-hidden="true"></i><div><strong>Briefing advisor</strong><span id="llm-copy">Unavailable · deterministic fallback</span></div><code id="summary-digest">4f6d…e91b</code></div></section>
+          <section class="rail-block"><div class="rail-title"><span>Uncertainty</span><span>Persistent</span></div><div class="uncertainty">Evidence supports two elevated risks in one shift. It does not support a cross-domain causal conclusion.</div></section>
+        </aside>
+      </section>
+
+      <section class="lower" aria-label="Agent trace and governance">
+        <article class="panel"><header class="panel-head"><h2>Multi-agent investigation timeline</h2><span>4 activities · 11 evidence citations</span></header><ol class="timeline">
+          <li><time>03:00:14</time><div class="agent"><span class="agent-dot">S</span>Supply analyst</div><div class="finding">Detected vessel delay risk for SHP-0042 at PORT-MAA; published model signal 0.91.</div><div class="evidence">Evidence<strong>3</strong></div></li>
+          <li><time>03:00:18</time><div class="agent"><span class="agent-dot agent-dot--it">IT</span>IT analyst</div><div class="finding">Linked DEP-882 to checkout latency and the svc-payments dependency path; signal 0.94.</div><div class="evidence">Evidence<strong>4</strong></div></li>
+          <li><time>03:00:23</time><div class="agent"><span class="agent-dot agent-dot--critic">C</span>Decision critic</div><div class="finding">Both thresholds are exceeded; marked cross-domain causality as unproven.</div><div class="evidence">Evidence<strong>2</strong></div></li>
+          <li><time>03:00:29</time><div class="agent"><span class="agent-dot agent-dot--llm">AI</span>Briefing advisor</div><div class="finding">Produced a bounded advisory digest from cited facts; cannot alter policy or action parameters.</div><div class="evidence">Evidence<strong>2</strong></div></li>
+        </ol></article>
+
+        <aside class="governance" aria-label="R3 plan and outcome">
+          <section class="panel plan"><header class="panel-head"><h2>R3 human approval required</h2><span class="state tone-waiting" id="plan-state">Awaiting approval</span></header><div class="plan-body"><div class="plan-grid"><div><span class="rail-title" style="padding:0">Risk class</span><div class="risk-class">R3</div></div><div><span class="rail-title" style="padding:0">Immutable plan hash</span><code class="hash" id="plan-hash">8814a2fce863a6a334f323da9fa1ce4f5bdb7958be1fea618bef21d230110cca</code></div></div><p class="plan-summary">Simulate reroute of SHP-0042 via <code>sim://reroute/PORT-MAA</code>. IT response remains a separate recommendation.</p>
+            <div class="control-set" id="demo-controls"><button class="button" id="preview-awaiting" type="button" aria-pressed="true">Preview: awaiting</button><button class="button" id="preview-approved" type="button" aria-pressed="false">Preview: approved</button><button class="button" id="preview-verified" type="button" aria-pressed="false">Preview: verified</button></div>
+            <div class="control-set" id="live-controls" hidden><button class="button button--primary" id="approve-button" type="button">Approve exact R3</button><button class="button button--danger" id="reject-button" type="button">Reject R3</button><button class="button" id="execute-button" type="button" disabled>Execute simulation</button></div>
+            <div class="locked" id="locked-controls" hidden><strong>Governance controls unavailable.</strong> The connected run could not be verified. Representative data remains read-only; no approval, rejection, execution, or audit write can occur.</div>
+            <p class="notice" id="action-notice" aria-live="polite">Guided preview only · no identity check · no persistence · no audit write.</p></div></section>
+          <section class="status-card" aria-label="Simulated action status"><div><span>Action</span><strong id="action-status">Not executed</strong></div><div><span>External connector</span><strong>Never invoked</strong></div><div><span>Expected impact</span><strong>14h improvement</strong></div></section>
+          <section class="verification" id="verification-card"><span class="verify-icon" aria-hidden="true">—</span><div><strong id="verification-title">Verification not run</strong><span id="verification-copy">Preview the verified state to inspect the representative outcome.</span></div><span class="confidence" id="verification-confidence">—</span></section>
+          <section class="audit"><strong>Audit trail</strong><span id="audit-unavailable">Unavailable · no audit write</span><button class="button" id="audit-link" type="button" hidden>Inspect run events</button><span id="audit-result" hidden></span></section>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <div class="sr-live" id="live-region" aria-live="polite"></div>
+  <script id="prototype-preview" type="application/json">{"schema_version":"1.0.0","run_id":"018f0000-0000-7000-8000-000000000901","tenant_id":"018f0000-0000-7000-8000-000000000902","tenant_name":"Authenticated tenant","scenario_id":"storm-and-checkout-shift-v1","seed_digest":"ab6630b92c813392964fad431fe7aba5e2b68f0742e800523d6ceec3196f0e06","status":"awaiting_approval","proposer_id":"018f0000-0000-7000-8000-000000000903","signals":[{"domain":"supply","model_version":"demo.supply-delay.v1","target_id":"SHP-0042","score":0.91,"threshold":0.8,"feature_map":{"port_closed":1.0,"affected_shipments":3.0,"component_risk":1.0},"evidence_node_ids":["PORT-MAA","SHP-0042","SHP-0047","SHP-0051","CMP-SENSOR-A","PO-1107","PO-1112"]},{"domain":"it","model_version":"demo.incident-risk.v1","target_id":"svc-checkout","score":0.94,"threshold":0.8,"feature_map":{"deployment_precedes_latency":1.0,"p95_shift_minutes":4.0},"evidence_node_ids":["DEP-882","svc-checkout","svc-payments","db-ledger"]}],"findings":[{"agent_role":"supply_risk_analyst","status":"completed","finding_code":"supply_delay_threshold_exceeded","evidence_node_ids":["PORT-MAA","SHP-0042","SHP-0047","SHP-0051","CMP-SENSOR-A","PO-1107","PO-1112"],"uncertainty_code":"Deterministic projection; no live logistics telemetry"},{"agent_role":"it_incident_analyst","status":"completed","finding_code":"incident_risk_threshold_exceeded","evidence_node_ids":["DEP-882","svc-checkout","svc-payments","db-ledger"],"uncertainty_code":"Temporal association; not a deployment root-cause proof"},{"agent_role":"decision_critic","status":"completed","finding_code":"cross_domain_priority_correlated","evidence_node_ids":["shift-2026-08-09","PORT-MAA","DEP-882"],"uncertainty_code":"Correlated operational priority, not a proven causal link"}],"llm":{"provider_status":"unavailable","model_id":"deepseek-ai/DeepSeek-V4-Flash-0731","prompt_version":"prototype-briefing.v1","summary_sha256":"640bbf00ba9ac7809e775f680cc24a5cada30427a16ad53fb5dad425fb0cc7d2","citation_node_ids":["PORT-MAA","SHP-0042","DEP-882","svc-checkout"]},"plan":{"action_kind":"simulated_reroute","target_id":"SHP-0042","destination":"sim://reroute/PORT-MAA","expected_effect":"reduce_predicted_delay_by_14_hours","risk_class":"R3","plan_hash":"8814a2fce863a6a334f323da9fa1ce4f5bdb7958be1fea618bef21d230110cca","status":"awaiting_approval"},"approval":null,"execution":null,"verification":null,"audit_events":[]}</script>
+  <script>
+    (() => {
+      "use strict";
+      const fallback = Object.freeze(JSON.parse(document.getElementById("prototype-preview").textContent));
+      const statusMap = Object.freeze({
+        loading: { label: "Loading", tone: "tone-muted", action: "Not executed", terminal: true },
+        awaiting_approval: { label: "Awaiting approval", tone: "tone-waiting", action: "Paused", terminal: false },
+        approved: { label: "Approved", tone: "tone-good", action: "Ready", terminal: false },
+        executing: { label: "Executing", tone: "tone-waiting", action: "Simulating", terminal: true },
+        executed: { label: "Executed", tone: "tone-good", action: "Executed", terminal: true },
+        verified: { label: "Verified", tone: "tone-good", action: "Verified", terminal: true },
+        rejected: { label: "Rejected", tone: "tone-danger", action: "Rejected", terminal: true },
+        failed: { label: "Failed", tone: "tone-danger", action: "Failed", terminal: true },
+        expired: { label: "Expired", tone: "tone-danger", action: "Expired", terminal: true },
+        unavailable: { label: "Unavailable", tone: "tone-danger", action: "Unavailable", terminal: true },
+        unknown: { label: "Unknown state", tone: "tone-danger", action: "Locked", terminal: true }
+      });
+      const llmStatusMap = Object.freeze({
+        available: { status: "available", label: "available", copy: "Available · cited advisory digest recorded" },
+        unavailable: { status: "unavailable", label: "unavailable", copy: "Unavailable · deterministic fallback" },
+        timeout: { status: "timeout", label: "timed out", copy: "Timed out · deterministic fallback" },
+        invalid_output: { status: "invalid_output", label: "invalid output", copy: "Invalid output · rejected; deterministic fallback" },
+        malformed: { status: "invalid_output", label: "invalid output", copy: "Invalid output · rejected; deterministic fallback" },
+        uncited: { status: "uncited", label: "uncited output", copy: "Uncited output · rejected; deterministic fallback" }
+      });
+      const connectedRun = new URLSearchParams(window.location.search).get("run");
+      const initialPreview = new URLSearchParams(window.location.search).get("preview");
+      let mode = "demo";
+      let run = fallback;
+      let bearerToken = null;
+      let mutationInFlight = false;
+      const byId = (id) => document.getElementById(id);
+      const setText = (id, value) => { const node = byId(id); if (node) node.textContent = String(value); };
+      const announce = (value) => setText("live-region", value);
+      const show = (id, visible) => { byId(id).hidden = !visible; };
+      const setMode = (next, detail) => {
+        mode = next; const notice = byId("mode-notice"); notice.dataset.mode = next;
+        const titles = { demo: "Demo data / no audit write", loading: "Connecting / read-only until verified", live: "Governed run connected", unavailable: "Connected run unavailable / read-only" };
+        const copies = { demo: "Representative fixture only. Guided state previews are non-authenticated, non-persistent, and never call governance endpoints.", loading: "Governance controls remain locked while the tenant-scoped run is verified.", live: "Authenticated tenant-scoped run loaded. Governance controls reflect the persisted state.", unavailable: detail || "The governed run could not be verified. Representative data is shown without any mutation or audit capability." };
+        setText("mode-title", titles[next]); setText("mode-copy", copies[next]);
+        show("demo-controls", next === "demo"); show("live-controls", next === "live"); show("locked-controls", next === "loading" || next === "unavailable");
+        show("audit-link", next === "live"); show("audit-unavailable", next !== "live"); if (next !== "live") show("audit-result", false);
+      };
+      const normalizeStatus = (status) => Object.prototype.hasOwnProperty.call(statusMap, status) ? status : "unknown";
+      const renderStatus = (rawStatus) => {
+        const status = normalizeStatus(rawStatus); const meta = statusMap[status]; const badge = byId("plan-state");
+        badge.textContent = meta.label; badge.className = "state " + meta.tone; setText("top-state", meta.label); setText("action-status", meta.action);
+        const verified = status === "verified"; setText("verification-title", verified ? "Verified representative result" : status === "failed" ? "Verification failed" : "Verification not run");
+        setText("verification-copy", verified ? "Simulated delay improves by 14 hours; no external connector was invoked." : status === "failed" ? "The simulated outcome did not satisfy its verification condition." : "No verified effect is claimed in this state.");
+        setText("verification-confidence", verified ? "0.92" : "—");
+        const canApprove = mode === "live" && !mutationInFlight && status === "awaiting_approval"; const canExecute = mode === "live" && !mutationInFlight && status === "approved";
+        byId("approve-button").disabled = !canApprove; byId("reject-button").disabled = !canApprove; byId("execute-button").disabled = !canExecute;
+        ["preview-awaiting", "preview-approved", "preview-verified"].forEach((id) => byId(id).setAttribute("aria-pressed", String(id === "preview-" + (status === "awaiting_approval" ? "awaiting" : status))));
+      };
+      const isPlanHash = (value) => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+      const currentStatus = () => normalizeStatus(run && run.status || run && run.plan && run.plan.status || "unknown");
+      const renderLlmStatus = (value) => {
+        const meta = llmStatusMap[value] || { status: "invalid_output", label: "unknown or invalid output", copy: "Unknown output state · rejected; deterministic fallback" };
+        const node = byId("llm-status"); node.dataset.status = meta.status; node.setAttribute("aria-label", "Advisory LLM status: " + meta.label); setText("llm-copy", meta.copy);
+      };
+      const applyRun = (value) => {
+        if (!value || typeof value !== "object") throw new Error("invalid run response"); run = value;
+        setText("run-id", value.run_id || fallback.run_id); setText("tenant-name", value.tenant_name || fallback.tenant_name); setText("seed-digest", "seed " + (value.seed_digest || fallback.seed_digest) + " · 12 nodes");
+        const plan = value.plan && typeof value.plan === "object" ? value.plan : {}; if (mode === "live" && !isPlanHash(plan.plan_hash)) throw new Error("invalid immutable plan hash"); setText("plan-hash", isPlanHash(plan.plan_hash) ? plan.plan_hash : fallback.plan.plan_hash);
+        const llm = value.llm && typeof value.llm === "object" ? value.llm : fallback.llm; renderLlmStatus(llm.provider_status); setText("summary-digest", String(llm.summary_sha256 || fallback.llm.summary_sha256).replace("sha256:", "").slice(0,4) + "…" + String(llm.summary_sha256 || fallback.llm.summary_sha256).slice(-4));
+        renderStatus(value.status || plan.status || "unknown");
+      };
+      const enterUnavailable = (message) => { bearerToken = null; setMode("unavailable", message); run = fallback; applyRun(fallback); renderStatus("unavailable"); setText("run-id", "representative fixture · requested " + connectedRun); setText("action-notice", "Read-only degraded state. Governance endpoints will not be retried from this page."); announce("Connected run unavailable. All governance controls are locked."); };
+      const idempotency = () => "prototype-ui-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
+      const authorizedFetch = (path, options = {}) => { if (!bearerToken) throw new Error("connection required"); const headers = Object.assign({}, options.headers || {}, { Authorization: "Bearer " + bearerToken }); return fetch(path, Object.assign({}, options, { headers })); };
+      const request = async (path, body, planHash) => { if (!isPlanHash(planHash)) throw new Error("invalid immutable plan hash"); const response = await authorizedFetch(path, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotency(), "If-Match": "\"" + planHash + "\"" }, body: JSON.stringify(body) }); if (!response.ok) throw new Error("governance unavailable"); return response.json(); };
+      const mutate = async ({ expectedStatus, path, body, successNotice, successAnnouncement }) => {
+        if (mode !== "live" || mutationInFlight) return;
+        const status = currentStatus(); if (status !== expectedStatus) { renderStatus(status); announce("Stale governance control ignored. Current run state is " + statusMap[status].label + "."); return; }
+        const planHash = run && run.plan && run.plan.plan_hash; if (!isPlanHash(planHash)) { enterUnavailable("The connected immutable plan hash is absent or invalid. No governance request was sent."); return; }
+        mutationInFlight = true; renderStatus(status); setText("action-notice", "Submitting exact-hash governed request…");
+        try { const updated = await request(path, body(planHash), planHash); applyRun(updated); setText("action-notice", successNotice); announce(successAnnouncement); }
+        catch { enterUnavailable("The governance service rejected or could not complete the request. Controls are locked and no success is implied."); }
+        finally { mutationInFlight = false; if (mode === "live") renderStatus(currentStatus()); }
+      };
+      const preview = (status) => { if (mode !== "demo") return; renderStatus(status); setText("action-notice", "Previewing “" + statusMap[status].label + "” · no identity check · no persistence · no audit write."); announce("Representative preview state: " + statusMap[status].label + ". No audit write."); };
+      byId("preview-awaiting").addEventListener("click", () => preview("awaiting_approval")); byId("preview-approved").addEventListener("click", () => preview("approved")); byId("preview-verified").addEventListener("click", () => preview("verified"));
+      byId("connect-button").addEventListener("click", async () => { const input = byId("bearer-token"); const captured = String(input.value || ""); input.value = ""; if (!connectedRun || !captured) { announce("A run reference and ephemeral bearer token are required."); return; } bearerToken = captured; setMode("loading"); renderStatus("loading"); try { const response = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(connectedRun)); if (!response.ok) throw new Error("run unavailable"); const value = await response.json(); setMode("live"); applyRun(value); announce("Governed run connected."); } catch { enterUnavailable("The requested governed run could not be authenticated or loaded. Representative data is shown read-only."); } });
+      byId("audit-link").addEventListener("click", async () => { if (mode !== "live" || !bearerToken) return; try { const response = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/trace"); if (!response.ok) throw new Error("audit unavailable"); const trace = await response.json(); if (!trace || !Array.isArray(trace.events)) throw new Error("invalid audit response"); setText("audit-result", String(trace.events.length) + " integrity-chained run events available."); show("audit-result", true); announce("Run audit summary loaded."); } catch { setText("audit-result", "Audit summary unavailable."); show("audit-result", true); announce("Run audit summary unavailable."); } });
+      byId("approve-button").addEventListener("click", () => mutate({ expectedStatus: "awaiting_approval", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/approval", body: (planHash) => ({ plan_hash: planHash, decision: "approve" }), successNotice: "Authenticated exact-hash approval recorded; the returned run state is current.", successAnnouncement: "Exact R3 plan approval response applied." }));
+      byId("reject-button").addEventListener("click", () => mutate({ expectedStatus: "awaiting_approval", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/approval", body: (planHash) => ({ plan_hash: planHash, decision: "reject", reason: "operator_rejected" }), successNotice: "Authenticated rejection returned a terminal run state.", successAnnouncement: "R3 plan rejection response applied." }));
+      byId("execute-button").addEventListener("click", () => mutate({ expectedStatus: "approved", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/execute", body: (planHash) => ({ plan_hash: planHash }), successNotice: "Prototype API returned the current simulated execution and verification state. No external connector was invoked.", successAnnouncement: "Simulated execution response applied." }));
+      applyRun(fallback); setMode(mode);
+      if (!connectedRun && ["awaiting_approval", "approved", "verified"].includes(initialPreview)) preview(initialPreview);
+      const root = document.documentElement; document.body.dataset.horizontalOverflow = String(root.scrollWidth > root.clientWidth + 1); document.body.dataset.viewportWidth = String(window.innerWidth);
+    })();
+  </script>
+</body>
+</html>
