@@ -1,0 +1,18 @@
+[project]
+name = "nexus-prototype"
+version = "0.1.0"
+description = "NEXUS deterministic prototype signal baseline"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "nexus-contracts",
+    "nexus-security",
+    "uuid6>=2025.0.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+nexus-contracts = { workspace = true }
+nexus-security = { workspace = true }

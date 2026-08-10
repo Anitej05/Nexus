@@ -1,0 +1,18 @@
+[project]
+name = "nexus-llm"
+version = "0.1.0"
+description = "Bounded OpenAI-compatible structured-output adapters for NEXUS"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "nexus-contracts",
+    "pydantic>=2.12.5",
+    "rfc8785>=0.1.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+nexus-contracts = { workspace = true }
