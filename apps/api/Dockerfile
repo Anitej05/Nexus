@@ -20,7 +20,12 @@ COPY packages/storage/src packages/storage/src
 RUN uv sync --frozen --no-dev --no-editable --package nexus-api
 
 FROM python:3.11.9-slim-bookworm@sha256:2856e6af199e8128161abd320575eb9b341f3b76f017b5d0c9cd364f60d8a050 AS runtime
-RUN groupadd --gid 10001 nexus && useradd --uid 10001 --gid nexus --create-home nexus
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && python -m pip uninstall -y setuptools wheel \
+    && groupadd --gid 10001 nexus \
+    && useradd --uid 10001 --gid nexus --create-home nexus \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
 COPY --from=builder /workspace/.venv /workspace/.venv
 ENV PATH="/workspace/.venv/bin:$PATH" PYTHONUNBUFFERED=1
