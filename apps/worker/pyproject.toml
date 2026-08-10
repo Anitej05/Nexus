@@ -1,0 +1,15 @@
+[project]
+name = "nexus-worker"
+version = "0.1.0"
+description = "NEXUS worker"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "nexus-contracts",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+nexus-contracts = { workspace = true }

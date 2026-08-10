@@ -1,0 +1,11 @@
+services:
+  opa:
+    ports: ["127.0.0.1:${NEXUS_OPA_HOST_PORT}:8181"]
+  api:
+    environment:
+      NEXUS_POSTGRES_HOST: postgres
+      NEXUS_TEMPORAL_HOST: temporal
+  worker:
+    environment:
+      NEXUS_POSTGRES_HOST: postgres
+      NEXUS_TEMPORAL_HOST: temporal

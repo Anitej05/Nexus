@@ -1,0 +1,364 @@
+name: nexus
+
+x-defaults: &defaults
+  platform: linux/amd64
+  networks: [nexus]
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *defaults
+    image: timescale/timescaledb-ha:pg16-all@sha256:162438ac3e6d2a152c5add2523ecb34d99f891243fcbc41dd9196cb9ac21c4d4
+    environment:
+      POSTGRES_DB: ${NEXUS_POSTGRES_DB}
+      POSTGRES_USER: ${NEXUS_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${NEXUS_POSTGRES_PASSWORD}
+      NEXUS_RUNTIME_DATABASE_USER: ${NEXUS_RUNTIME_DATABASE_USER}
+      NEXUS_RUNTIME_DATABASE_PASSWORD: ${NEXUS_RUNTIME_DATABASE_PASSWORD}
+      NEXUS_MIGRATION_DATABASE_USER: ${NEXUS_MIGRATION_DATABASE_USER}
+      NEXUS_MIGRATION_DATABASE_PASSWORD: ${NEXUS_MIGRATION_DATABASE_PASSWORD}
+      NEXUS_AUDIT_RECOVERY_DATABASE_USER: ${NEXUS_AUDIT_RECOVERY_DATABASE_USER}
+      NEXUS_AUDIT_RECOVERY_DATABASE_PASSWORD: ${NEXUS_AUDIT_RECOVERY_DATABASE_PASSWORD}
+    ports: ["127.0.0.1:${NEXUS_POSTGRES_HOST_PORT}:5432"]
+    command: ["postgres", "-c", "max_connections=100", "-c", "superuser_reserved_connections=5"]
+    volumes:
+      - postgres-data:/home/postgres/pgdata/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/001-extensions.sql:ro
+      - ./postgres/init-users.sh:/docker-entrypoint-initdb.d/002-application-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 896m
+
+  neo4j:
+    <<: *defaults
+    image: neo4j:5.26.4-community@sha256:9cdbb97415c27e4fe2886e287ad575556ebfa07ad1b3b7128ef8f913f8483293
+    environment:
+      NEO4J_AUTH: neo4j/${NEXUS_NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports: ["127.0.0.1:${NEXUS_NEO4J_HOST_PORT}:7687"]
+    volumes: [neo4j-data:/data, neo4j-logs:/logs]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 768m
+
+  redpanda:
+    <<: *defaults
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.6@sha256:506a2ac8ac0dd2eaf3b15d25c22e1c792b3e1cf04c01a88186099870e0b76529
+    command: >-
+      redpanda start --overprovisioned --smp 1 --memory 512M --reserve-memory 0M
+      --node-id 0 --check=false --kafka-addr PLAINTEXT://0.0.0.0:9092
+      --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports: ["127.0.0.1:${NEXUS_REDPANDA_HOST_PORT}:9092"]
+    volumes: [redpanda-data:/var/lib/redpanda/data]
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy", "-X", "brokers=localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 640m
+
+  redpanda-bootstrap:
+    <<: *defaults
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.6@sha256:506a2ac8ac0dd2eaf3b15d25c22e1c792b3e1cf04c01a88186099870e0b76529
+    restart: unless-stopped
+    user: "101:101"
+    depends_on:
+      redpanda: {condition: service_healthy}
+    volumes: [./redpanda/bootstrap.sh:/bootstrap.sh:ro]
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    read_only: true
+    tmpfs: ["/run/redpanda-bootstrap:rw,nosuid,nodev,size=1m,uid=101,gid=101,mode=1777"]
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/bootstrap.sh", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    mem_limit: 128m
+
+  minio:
+    <<: *defaults
+    image: minio/minio:RELEASE.2025-02-18T16-25-55Z@sha256:ba066af3af27a380e38d11b7be65336e32dd832f2bd1ceb359ff9e022986cbe9
+    environment:
+      MINIO_ROOT_USER: ${NEXUS_MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${NEXUS_MINIO_ROOT_PASSWORD}
+    command: server /data --console-address :9001
+    ports: ["127.0.0.1:${NEXUS_MINIO_HOST_PORT}:9000"]
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    mem_limit: 256m
+
+  redis:
+    <<: *defaults
+    image: redis:7.4.2-alpine@sha256:519f0189dfdee3bc0bad61fb265fe73d864b5c64020e6579ad48a45c49965635
+    command: redis-server --appendonly yes
+    ports: ["127.0.0.1:${NEXUS_REDIS_HOST_PORT}:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 128m
+
+  temporal:
+    <<: *defaults
+    image: temporalio/auto-setup:1.26.2@sha256:2f9c8c3baf4dd796284b86bfd613d05e80193737a03e5ffa789aaae15fcb7206
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: ${NEXUS_POSTGRES_USER}
+      POSTGRES_PWD: ${NEXUS_POSTGRES_PASSWORD}
+      POSTGRES_DB: temporal
+      SQL_MAX_CONNS: 5
+      SQL_MAX_IDLE_CONNS: 2
+      SQL_VIS_MAX_CONNS: 3
+      SQL_VIS_MAX_IDLE_CONNS: 1
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["127.0.0.1:${NEXUS_TEMPORAL_HOST_PORT}:7233"]
+    healthcheck:
+      test: ["CMD-SHELL", "tctl --address temporal:7233 cluster health"]
+      interval: 15s
+      timeout: 8s
+      retries: 16
+      start_period: 45s
+    mem_limit: 512m
+
+  opa:
+    <<: *defaults
+    image: openpolicyagent/opa:0.70.0-static@sha256:f3586d9e44c3be902e408bdd4cc189a6a7daf2225f398b33b9c9e62d67c2b4d5
+    command: run --server --addr=0.0.0.0:8181 --authorization=basic --config-file=/config/config.yaml /policy
+    volumes:
+      - ../opa/config.yaml:/config/config.yaml:ro
+      - ../opa/bundles/nexus:/policy:ro
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: 128m
+
+  opa-health-probe:
+    <<: *defaults
+    image: nexus-otel-health-probe:dev
+    build:
+      context: ../..
+      dockerfile: infrastructure/observability/otel-health-probe.Dockerfile
+    environment:
+      OPA_DECISION_URL: http://opa:8181/v1/data/nexus/authz/decision
+      OTEL_HEALTH_URL: http://opa:8181/health?plugins
+    depends_on:
+      opa: {condition: service_started}
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "/probe.py", "--self-check"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 64m
+
+  keycloak:
+    <<: *defaults
+    image: quay.io/keycloak/keycloak:26.1.0@sha256:5226daa9881f392914e0e2b8c213d42caa4450f547dd435b3d427e2a5187138a
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${NEXUS_KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${NEXUS_KEYCLOAK_ADMIN_PASSWORD}
+      NEXUS_KEYCLOAK_TEST_ADMIN_PASSWORD: ${NEXUS_KEYCLOAK_TEST_ADMIN_PASSWORD}
+      NEXUS_KEYCLOAK_TEST_VIEWER_PASSWORD: ${NEXUS_KEYCLOAK_TEST_VIEWER_PASSWORD}
+      NEXUS_OIDC_WORKER_CLIENT_SECRET: ${NEXUS_OIDC_WORKER_CLIENT_SECRET}
+      KC_HOSTNAME: http://${NEXUS_COMPOSE_HOST}:${NEXUS_KEYCLOAK_HOST_PORT}
+      KC_HEALTH_ENABLED: "true"
+    ports: ["127.0.0.1:${NEXUS_KEYCLOAK_HOST_PORT}:8080"]
+    volumes: [../keycloak/nexus-realm.json:/opt/keycloak/data/import/nexus-realm.json:ro]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9000'"]
+      interval: 15s
+      timeout: 8s
+      retries: 16
+      start_period: 45s
+    mem_limit: 640m
+
+  otel-collector:
+    <<: *defaults
+    image: otel/opentelemetry-collector-contrib:0.118.0@sha256:83ff24727f615c39056d954dd3a5d4ef227a5a9fe2c234a4489199e4351f0ab5
+    command: ["--config=/etc/otelcol-contrib/otel-collector.yaml"]
+    ports: ["127.0.0.1:${NEXUS_OTEL_HOST_PORT}:4317"]
+    volumes: [../observability/otel-collector.yaml:/etc/otelcol-contrib/otel-collector.yaml:ro]
+    mem_limit: 128m
+
+  otel-health-probe:
+    <<: *defaults
+    image: nexus-otel-health-probe:dev
+    build:
+      context: ../..
+      dockerfile: infrastructure/observability/otel-health-probe.Dockerfile
+    environment:
+      OTEL_HEALTH_URL: http://otel-collector:13133/
+    depends_on:
+      otel-collector: {condition: service_started}
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "/probe.py", "--self-check"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 64m
+
+  prometheus:
+    <<: *defaults
+    image: prom/prometheus:v3.1.0@sha256:da1630c5102817ed365a523448c766e417030a53ec3dfbe064d429df504e023e
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    ports: ["127.0.0.1:${NEXUS_PROMETHEUS_HOST_PORT}:9090"]
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/ready >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 192m
+
+  grafana:
+    <<: *defaults
+    image: grafana/grafana:11.5.1@sha256:3d6742db32ccf46d1c4223697bc4beaeb50a363f0abc8395454a6a365b963d76
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${NEXUS_GRAFANA_ADMIN_PASSWORD}
+    ports: ["127.0.0.1:${NEXUS_GRAFANA_HOST_PORT}:3000"]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+
+  mlflow:
+    <<: *defaults
+    image: nexus-mlflow:dev
+    build:
+      context: ../..
+      dockerfile: infrastructure/mlflow/Dockerfile
+    command: >-
+      mlflow server --host 0.0.0.0 --port 5000 --workers 1
+      --backend-store-uri postgresql://${NEXUS_POSTGRES_USER}:${NEXUS_POSTGRES_PASSWORD}@postgres:5432/${NEXUS_POSTGRES_DB}
+      --default-artifact-root s3://nexus-artifacts
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${NEXUS_MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${NEXUS_MINIO_ROOT_PASSWORD}
+    ports: ["127.0.0.1:${NEXUS_MLFLOW_HOST_PORT}:5000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)\""]
+      interval: 15s
+      timeout: 8s
+      retries: 16
+      start_period: 30s
+    mem_limit: 256m
+
+  api:
+    <<: *defaults
+    image: nexus-api:dev
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NEXUS_POSTGRES_HOST: postgres
+      NEXUS_DATABASE_URL: ${NEXUS_DATABASE_INTERNAL_URL}
+      NEXUS_MIGRATION_DATABASE_URL: ${NEXUS_MIGRATION_DATABASE_INTERNAL_URL}
+      NEXUS_TEMPORAL_HOST: temporal
+      NEXUS_OPA_INTERNAL_URL: http://opa:8181/health?plugins
+      NEXUS_OPA_DECISION_URL: ${NEXUS_OPA_DECISION_URL}
+      NEXUS_KEYCLOAK_INTERNAL_URL: http://keycloak:8080/realms/nexus
+      NEXUS_OIDC_ISSUER: ${NEXUS_OIDC_ISSUER}
+      NEXUS_OIDC_JWKS_URL: ${NEXUS_OIDC_JWKS_URL}
+      NEXUS_OIDC_AUDIENCE: ${NEXUS_OIDC_AUDIENCE}
+      NEXUS_OIDC_WORKER_AZP: ${NEXUS_OIDC_WORKER_AZP}
+      NEXUS_LLM_BASE_URL: ${NEXUS_LLM_BASE_URL:-http://host.docker.internal:9997/v1}
+      NEXUS_LLM_MODEL: ${NEXUS_LLM_MODEL:-deepseek-ai/DeepSeek-V4-Flash-0731}
+      NEXUS_LLM_API_KEY: ${NEXUS_LLM_API_KEY:-}
+      NEXUS_LLM_TOTAL_TIMEOUT_SECONDS: ${NEXUS_LLM_TOTAL_TIMEOUT_SECONDS:-30}
+      NEXUS_PROTOTYPE_LLM_BASE_URL: ${NEXUS_PROTOTYPE_LLM_BASE_URL:-${NEXUS_LLM_BASE_URL:-http://host.docker.internal:9997/v1}}
+      NEXUS_PROTOTYPE_LLM_MODEL: ${NEXUS_PROTOTYPE_LLM_MODEL:-${NEXUS_LLM_MODEL:-deepseek-ai/DeepSeek-V4-Flash-0731}}
+      NEXUS_PROTOTYPE_LLM_API_KEY: ${NEXUS_PROTOTYPE_LLM_API_KEY:-${NEXUS_LLM_API_KEY:-}}
+      NEXUS_PROTOTYPE_LLM_TIMEOUT_SECONDS: ${NEXUS_PROTOTYPE_LLM_TIMEOUT_SECONDS:-15}
+    ports: ["127.0.0.1:${NEXUS_API_HOST_PORT}:8000"]
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      postgres: {condition: service_healthy}
+      temporal: {condition: service_healthy}
+      opa: {condition: service_started}
+      opa-health-probe: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+
+  worker:
+    <<: *defaults
+    image: nexus-worker:dev
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    command: ["python", "-m", "nexus_worker.main"]
+    environment:
+      NEXUS_DATABASE_URL: ${NEXUS_DATABASE_INTERNAL_URL}
+      NEXUS_MIGRATION_DATABASE_URL: ${NEXUS_MIGRATION_DATABASE_INTERNAL_URL}
+      NEXUS_OPA_DECISION_URL: ${NEXUS_OPA_DECISION_URL}
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      postgres: {condition: service_healthy}
+      temporal: {condition: service_healthy}
+      opa: {condition: service_started}
+      opa-health-probe: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from nexus_worker.main import load_contributions; load_contributions()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 256m
+
+networks:
+  nexus:
+    name: nexus-internal
+
+volumes:
+  postgres-data:
+  neo4j-data:
+  neo4j-logs:
+  redpanda-data:
+  minio-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:

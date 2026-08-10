@@ -1,0 +1,21 @@
+[project]
+name = "nexus-api"
+version = "0.1.0"
+description = "NEXUS API"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "nexus-contracts",
+    "nexus-llm",
+    "nexus-security",
+    "uvicorn>=0.52.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+nexus-contracts = { workspace = true }
+nexus-llm = { workspace = true }
+nexus-security = { workspace = true }
