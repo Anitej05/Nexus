@@ -9,7 +9,7 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "nexus-contracts",
-    "PyJWT[crypto]>=2.13.0",
+    "PyJWT[crypto]>=2.15.0",
     "rfc8785>=0.1.4",
     "sqlalchemy[asyncio]>=2.0.51",
     "uuid6>=2025.0.1",

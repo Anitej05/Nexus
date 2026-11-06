@@ -657,10 +657,16 @@ async def test_bad_signature_and_missing_or_invalid_worker_agent_id_are_denied(
         now,
     )
     signed = _token(key, now)
-    forged = signed.rsplit(".", 1)[0] + ".forged"
+    # A well-formed signature with wrong bytes must reach cryptographic verification.
+    # New PyJWT versions correctly reject malformed base64 before that stage.
+    wrong_signature = base64.urlsafe_b64encode(bytes(key.key_size // 8)).rstrip(b"=").decode()
+    forged = signed.rsplit(".", 1)[0] + "." + wrong_signature
     with pytest.raises(AuthenticationError) as signature:
         await authenticator.authenticate(forged)
     assert signature.value.code == "invalid_token_signature"
+    with pytest.raises(AuthenticationError) as malformed:
+        await authenticator.authenticate(signed.rsplit(".", 1)[0] + ".forged")
+    assert malformed.value.code == "invalid_token"
     for claim in (None, "not-a-uuid"):
         with pytest.raises(AgentIdentityDenied):
             await authenticator.authenticate(_token(key, now, azp="nexus-worker", agent_id=claim))
