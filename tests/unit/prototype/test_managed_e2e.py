@@ -449,6 +449,30 @@ def test_explicit_ports_must_be_distinct(monkeypatch: pytest.MonkeyPatch) -> Non
         runtime.RuntimeConfig.from_environment()
 
 
+@pytest.mark.parametrize("explicit_api", [False, True])
+def test_automatic_ports_retry_collisions_without_changing_explicit_ports(
+    monkeypatch: pytest.MonkeyPatch,
+    explicit_api: bool,
+) -> None:
+    runtime = _module()
+    _environment(monkeypatch)
+    sequence = iter([24001, 24002, 24003, 24001, 24004, 24005])
+    monkeypatch.setattr(runtime, "_free_port", lambda: next(sequence))
+    if explicit_api:
+        monkeypatch.setenv("NEXUS_PROTOTYPE_E2E_API_PORT", "24001")
+    config = runtime.RuntimeConfig.from_environment()
+    ports = [
+        config.postgres_port,
+        config.keycloak_port,
+        config.opa_port,
+        config.api_port,
+        config.llm_port,
+    ]
+    assert len(set(ports)) == 5
+    if explicit_api:
+        assert config.api_port == 24001
+
+
 def test_occupied_loopback_port_is_refused() -> None:
     runtime = _module()
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:

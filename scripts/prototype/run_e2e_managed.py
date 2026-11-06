@@ -295,6 +295,18 @@ class RuntimeConfig:
             "api": _parse_port("NEXUS_PROTOTYPE_E2E_API_PORT"),
             "llm": _parse_port("NEXUS_PROTOTYPE_E2E_LLM_PORT"),
         }
+        # A released ephemeral port can be returned again by the OS. Retry only
+        # automatic selections; explicit conflicting ports must still fail.
+        for service, port in list(ports.items()):
+            setting = f"NEXUS_PROTOTYPE_E2E_{service.upper()}_PORT"
+            if os.getenv(setting) is None and list(ports.values()).count(port) > 1:
+                for _ in range(32):
+                    candidate = _free_port()
+                    if candidate not in ports.values():
+                        ports[service] = candidate
+                        break
+                else:
+                    raise RuntimeError("could not select distinct managed E2E ports")
         if len(set(ports.values())) != len(ports):
             raise RuntimeError("managed E2E ports must be distinct")
         postgres_password = _required("NEXUS_POSTGRES_PASSWORD")
