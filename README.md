@@ -8,6 +8,10 @@ as a second domain pack. It accepts your JSON or CSV data, versions its provenan
 resource/material constrained schedules, compares branches and persists an approved plan revision.
 An independent account must approve the exact plan before its author can apply it.
 
+Labelled historical outcomes now trigger real local ML training and validation-gated
+retraining. The trained model can propose durations for the scheduler; Nemotron 3 Ultra
+explains the metrics. See the [automatic learning guide](docs/LEARNING_GUIDE.md).
+
 ```powershell
 uv sync --all-packages --frozen
 uv run python scripts/run_operations.py

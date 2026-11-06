@@ -77,6 +77,22 @@ def decision_digest(decision: dict[str, Any]) -> str:
     return digest(content)
 
 
+def attach_learning(analysis: dict[str, Any], metadata: dict[str, Any]) -> None:
+    analysis["learning"] = copy.deepcopy(metadata)
+    node_id = "@model/" + metadata["id"]
+    analysis["graph"]["nodes"].append(
+        {
+            "id": node_id,
+            "type": "trained_model",
+            "label": "Trained duration model",
+            "history_kind": metadata["history_kind"],
+            "training_digest": metadata["training_digest"],
+            "validation_mae": metadata["metrics"]["validation"]["duration"]["mae"],
+            "held_out_test_mae": metadata["metrics"]["test"]["duration"]["mae"],
+        }
+    )
+
+
 def create_operations_app(database_url: str) -> FastAPI:
     store = OperationsStore(database_url)
     dummy_password_hash = hash_password(secrets.token_urlsafe(32))
@@ -155,7 +171,16 @@ def create_operations_app(database_url: str) -> FastAPI:
                 and len(parts) >= 3
                 and parts[0] == "workspaces"
                 and action
-                in ("analyze", "scenarios", "integrations/weather", "integrations/advice")
+                in (
+                    "analyze",
+                    "scenarios",
+                    "integrations/weather",
+                    "integrations/advice",
+                    "learning/history",
+                    "learning/train",
+                    "learning/scenarios",
+                    "learning/evaluate",
+                )
             ):
                 async with store.transaction() as snapshot_state:
                     snapshot_session = lookup_session(
@@ -322,6 +347,45 @@ async def prepare(ws: dict[str, Any], action: str, body: dict[str, Any]) -> dict
     from .integrations import IntegrationError, advise, fetch_weather
 
     try:
+        if action in ("learning/history", "learning/train"):
+            from .learning_control import prepare_learning
+
+            return await asyncio.to_thread(prepare_learning, ws, action, body)
+        if action == "learning/scenarios":
+            from .learning_control import prepare_model_scenario
+
+            revision(ws, body)
+            result = await asyncio.to_thread(prepare_model_scenario, ws, body)
+            attach_learning(result["analysis"], result["model_metadata"])
+            return result
+        if action == "learning/evaluate":
+            from .learning import evaluate_models, validate_history
+            from .learning_control import initial
+
+            state = ws.get("learning", initial())
+            artifact = state["models"].get(body.get("model_id"))
+            if not artifact:
+                raise ValueError("Trained model not found")
+            history = body.get("history")
+            if not isinstance(history, dict):
+                raise ValueError("Evaluation history required")
+            history = validate_history(history)
+            existing = {p for groups in artifact["split"]["project_ids"].values() for p in groups}
+            if any(
+                r["domain"] != ws["domain"] or r["project_id"] in existing for r in history["rows"]
+            ):
+                raise ValueError("External evaluation needs new projects from the same domain")
+            metrics = await asyncio.to_thread(evaluate_models, artifact, history, "test")
+            return {
+                "revision": ws["revision"],
+                "learning_revision": state["history_revision"],
+                "model_id": artifact["id"],
+                "metrics": metrics,
+                "kind": history["kind"],
+                "evaluation_digest": digest(history),
+                "partition": "test",
+                "note": "External evaluation only; model and training history unchanged",
+            }
         data: dict[str, Any] = {"revision": ws["revision"]}
         if action == "integrations/weather":
             lat, long = body.get("latitude"), body.get("longitude")
@@ -351,6 +415,8 @@ async def prepare(ws: dict[str, Any], action: str, body: dict[str, Any]) -> dict
                 data["analysis"] = await asyncio.to_thread(
                     analyze_domain, ws["domain"], ws["dataset"], seed=seed, samples=samples
                 )
+                if (ws.get("analysis") or {}).get("learning"):
+                    attach_learning(data["analysis"], ws["analysis"]["learning"])
             else:
                 revision(ws, body)
                 changes = body.get("changes")
@@ -365,6 +431,8 @@ async def prepare(ws: dict[str, Any], action: str, body: dict[str, Any]) -> dict
                 data["analysis"] = await asyncio.to_thread(
                     analyze_domain, ws["domain"], data["payload"], seed=42, samples=100
                 )
+                if (ws.get("analysis") or {}).get("learning"):
+                    attach_learning(data["analysis"], ws["analysis"]["learning"])
         return data
     except IntegrationError as exc:
         raise HTTPException(503, str(exc)) from exc
@@ -400,6 +468,15 @@ async def dispatch(
         return domain_catalog()
     if len(parts) == 3 and parts[0] == "domains" and parts[2] == "sample" and method == "GET":
         return sample_payload(parts[1])
+    if (
+        len(parts) == 3
+        and parts[0] == "domains"
+        and parts[2] == "history-sample"
+        and method == "GET"
+    ):
+        from .synthetic import generate_history
+
+        return generate_history(parts[1])
     if path == "workspaces":
         if method == "GET":
             return [
@@ -433,16 +510,104 @@ async def dispatch(
             raise HTTPException(404, "Workspace not found")
         verify_events(ws)
         if len(parts) == 2 and method == "GET":
-            return {**ws, "decisions": [state["decisions"][d] for d in ws["decisions"]]}
+            return {
+                **{key: value for key, value in ws.items() if key != "learning"},
+                "decisions": [state["decisions"][d] for d in ws["decisions"]],
+            }
+        if parts[2:] == ["learning"] and method == "GET":
+            from .learning_control import summary
+
+            return summary(ws)
+        if len(parts) == 5 and parts[2:4] == ["learning", "models"] and method == "GET":
+            from .learning_control import initial
+
+            artifact = ws.get("learning", initial())["models"].get(parts[4])
+            if not artifact:
+                raise HTTPException(404, "Model artifact not found")
+            return artifact
         if len(parts) == 3 and parts[2] == "events" and method == "GET":
             return ws["events"]
         require(user, "owner", "planner")
         action = "/".join(parts[2:])
+        if action in ("learning/history", "learning/train") and method == "POST":
+            from .learning_control import initial, summary
+
+            if prepared is None:
+                raise ValueError("Training preparation missing")
+            if prepared["learning_revision"] != ws.get("learning", initial())["history_revision"]:
+                raise HTTPException(409, "Historical outcomes changed during training; retry")
+            ws["learning"] = prepared["state"]
+            event(
+                ws,
+                user["id"],
+                "learning_" + prepared["training"],
+                {
+                    "history_revision": ws["learning"]["history_revision"],
+                    "training": prepared["training"],
+                    "row_count": summary(ws)["row_count"],
+                    "history_digest": digest(ws["learning"]["history"]),
+                    "active_model_id": ws["learning"]["active_id"],
+                },
+            )
+            return summary(ws)
+        if action == "learning/evaluate" and method == "POST":
+            from .learning_control import initial
+
+            if prepared is None:
+                raise ValueError("Evaluation preparation missing")
+            if prepared["learning_revision"] != ws.get("learning", initial())["history_revision"]:
+                raise HTTPException(409, "Historical outcomes changed during evaluation")
+            event(
+                ws,
+                user["id"],
+                "learning_external_evaluated",
+                {
+                    "model_id": prepared["model_id"],
+                    "metrics": prepared["metrics"],
+                    "evaluation_digest": prepared["evaluation_digest"],
+                },
+            )
+            return prepared
         if prepared is not None:
             if prepared["revision"] != ws["revision"]:
                 raise HTTPException(409, "Plan changed during computation; retry")
             if "analysis_hash" in prepared and prepared["analysis_hash"] != digest(ws["analysis"]):
                 raise HTTPException(409, "Analysis changed during advice; retry")
+        if action == "learning/scenarios" and method == "POST":
+            from .learning_control import initial
+
+            if prepared is None:
+                raise ValueError("Model scenario preparation missing")
+            revision(ws, body)
+            learning = ws.get("learning", initial())
+            if (
+                prepared["learning_revision"] != learning["history_revision"]
+                or prepared["model_id"] != learning["active_id"]
+            ):
+                raise HTTPException(409, "Trained model changed during planning; retry")
+            scenario = {
+                "id": uuid.uuid4().hex,
+                "name": name(body),
+                "baseline_revision": ws["revision"],
+                "payload": prepared["payload"],
+                "analysis": prepared["analysis"],
+                "changes": prepared["changes"],
+                "model_metadata": prepared["model_metadata"],
+                "diff": {
+                    "baseline": prepared["baseline"]["forecast"],
+                    "branch": prepared["analysis"]["forecast"],
+                    "baseline_cost": prepared["baseline"]["cost"],
+                    "branch_cost": prepared["analysis"]["cost"],
+                },
+            }
+            ws["scenarios"].append(scenario)
+            event(
+                ws,
+                user["id"],
+                "learning_scenario_compared",
+                {"scenario_id": scenario["id"], "model_id": prepared["model_id"]},
+            )
+            return scenario
         if action == "dataset" and method == "PUT":
             revision(ws, body)
             payload = body.get("payload")

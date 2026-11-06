@@ -28,6 +28,8 @@ SCHEMAS = {
             "unit",
             "productivity",
             "minimum_duration",
+            "duration_estimate",
+            "estimate_quantity",
             "resources",
             "materials",
             "cost",
@@ -43,6 +45,8 @@ NUMBERS = {
     "remaining_quantity",
     "productivity",
     "minimum_duration",
+    "duration_estimate",
+    "estimate_quantity",
     "cost",
     "uncertainty",
 }

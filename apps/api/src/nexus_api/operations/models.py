@@ -105,6 +105,18 @@ def validate(payload: dict[str, Any]) -> dict[str, Any]:
             productivity = number(task["productivity"], "productivity", True)
             if not math.isfinite(remaining / productivity) or remaining / productivity > 1e9:
                 raise ValueError("derived task duration exceeds numeric bounds")
+            if ("duration_estimate" in task) != ("estimate_quantity" in task):
+                raise ValueError(
+                    "duration_estimate and estimate_quantity must be provided together"
+                )
+            if "duration_estimate" in task:
+                estimate = number(task["duration_estimate"], "duration_estimate", True)
+                basis = number(task["estimate_quantity"], "estimate_quantity", True)
+                if basis > quantity:
+                    raise ValueError("estimate_quantity exceeds quantity")
+                derived = estimate * (remaining / basis)
+                if not math.isfinite(derived) or derived > 1e9:
+                    raise ValueError("estimated duration exceeds numeric bounds")
             number(task.get("minimum_duration", 0), "minimum_duration")
             number(task.get("cost", 0), "cost")
             uncertainty = number(task.get("uncertainty", 0), "uncertainty")
@@ -201,9 +213,12 @@ def _schedule(
                     available[rid] -= amount
                 for mid, amount in t.get("materials", {}).items():
                     stock[mid] -= amount
-            duration = (
-                max(t.get("minimum_duration", 0), remaining / t["productivity"]) if remaining else 0
+            expected_duration = (
+                t["duration_estimate"] * (remaining / t["estimate_quantity"])
+                if "duration_estimate" in t
+                else remaining / t["productivity"]
             )
+            duration = max(t.get("minimum_duration", 0), expected_duration) if remaining else 0
             if rng and duration:
                 duration = max(
                     t.get("minimum_duration", 0),

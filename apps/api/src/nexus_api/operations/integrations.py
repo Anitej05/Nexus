@@ -156,6 +156,20 @@ async def advise(analysis: dict[str, Any], question: str) -> dict[str, Any]:
                     )
                 },
                 "allowed_evidence_ids": sorted(ids),
+                "trained_model": (
+                    {
+                        key: analysis["learning"][key]
+                        for key in (
+                            "id",
+                            "history_kind",
+                            "training_digest",
+                            "metrics",
+                            "limitations",
+                        )
+                    }
+                    if analysis.get("learning")
+                    else None
+                ),
                 "activity_schedule": [
                     {
                         k: activity[k]
@@ -176,8 +190,8 @@ async def advise(analysis: dict[str, Any], question: str) -> dict[str, Any]:
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Invalid analysis") from exc
-    if len(context.encode("utf-8")) > 16384:
-        raise ValueError("Analysis is too large for advisor (16 KiB limit)")
+    if len(context.encode("utf-8")) > 65536:
+        raise ValueError("Analysis is too large for advisor (64 KiB limit)")
     model = os.getenv("NEXUS_LLM_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
     result = await _request(
         "POST",

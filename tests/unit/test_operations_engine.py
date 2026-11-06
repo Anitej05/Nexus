@@ -189,3 +189,22 @@ def test_sensitivity_beyond_horizon_is_not_zero_impact():
     assert activity["dependency_impact_days"] is None
     assert activity["critical"] is True
     assert activity["impact_status"] == "beyond_horizon"
+
+
+def test_estimated_duration_scales_with_progress_and_rejects_invalid_basis():
+    payload = sample_payload("manufacturing")
+    payload["tasks"] = [payload["tasks"][0]]
+    task = payload["tasks"][0]
+    task["duration_estimate"] = 8
+    task["estimate_quantity"] = task["remaining_quantity"]
+    full = analyze_domain("manufacturing", payload, samples=1)["activities"][0][
+        "duration_working_days"
+    ]
+    task["remaining_quantity"] /= 2
+    partial = analyze_domain("manufacturing", payload, samples=1)["activities"][0][
+        "duration_working_days"
+    ]
+    assert full == 8 and partial == 4
+    task["estimate_quantity"] = 0
+    with pytest.raises(ValueError):
+        analyze_domain("manufacturing", payload, samples=1)

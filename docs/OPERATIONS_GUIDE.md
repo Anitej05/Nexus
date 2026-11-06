@@ -93,10 +93,13 @@ unavailable responses are explicit integration failures.
 
 Nemotron 3 Ultra is the selected model. Provider behaviour and model availability can change;
 responses have a bounded deadline and failures remain explicit. The advisor's evidence payload
-is limited to 16 KiB; oversized analyses are rejected rather than silently truncated.
+is limited to 64 KiB; oversized analyses are rejected rather than silently truncated.
 See NVIDIA's [Nemotron 3 Ultra reference](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b).
 
 ## Verification
+
+For actual model training, automatic retraining, supervised historical data and the larger
+synthetic evaluation, read the [learning guide](LEARNING_GUIDE.md).
 
 ```powershell
 uv run pytest tests/unit/operations tests/unit/test_operations_engine.py -q

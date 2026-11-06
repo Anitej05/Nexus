@@ -9,6 +9,7 @@ dependencies = [
     "nexus-contracts",
     "nexus-llm",
     "nexus-security",
+    "scikit-learn>=1.9.1,<1.10",
     "uvicorn>=0.52.1",
 ]
 
