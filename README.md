@@ -1,5 +1,29 @@
 # NEXUS
 
+## Operational planning workspaces
+
+The authenticated `/operations` application is the current integration path. It keeps the
+planning engine domain-agnostic, with construction as its first use case and manufacturing
+as a second domain pack. It accepts your JSON or CSV data, versions its provenance, computes
+resource/material constrained schedules, compares branches and persists an approved plan revision.
+An independent account must approve the exact plan before its author can apply it.
+
+```powershell
+uv sync --all-packages --frozen
+uv run python scripts/run_operations.py
+```
+
+Open <http://127.0.0.1:8090/operations> and create the first owner account. Add a separate
+approver account, create a workspace, then import data or load the explicitly synthetic sample.
+See the [operations guide](docs/OPERATIONS_GUIDE.md) for CSV format, live NVIDIA/Open-Meteo
+integrations, PostgreSQL, verification and modelling limits.
+
+Applying a decision updates the actual Nexus plan. It does not place a purchase order or
+instruct an external contractor. Forecast percentiles are modelled uncertainty, not calibrated
+real-world completion guarantees. This is a bounded graduate project, not an enterprise platform.
+
+## Earlier academic demonstration
+
 NEXUS is a bounded operational-intelligence prototype that connects a typed business graph,
 deterministic risk signals, concurrent specialist agents, a non-authoritative LLM briefing, and
 human approval for a simulated high-risk action. Four controlled scenarios cover an overlapping

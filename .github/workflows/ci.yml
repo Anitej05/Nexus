@@ -10,6 +10,22 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nexus_test
+          POSTGRES_PASSWORD: test_only_password
+          POSTGRES_DB: nexus_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nexus_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NEXUS_OPERATIONS_TEST_DATABASE_URL: postgresql+asyncpg://nexus_test:test_only_password@localhost:5432/nexus_test
     permissions:
       contents: read
     steps:
@@ -41,6 +57,12 @@ jobs:
       # packages from apt mirrors are unnecessary for this English-language UI.
       - run: npx --no-install playwright install chromium
       - run: npm run test:academic-browser
+      - run: npm run test:operations-ui
+      - run: npm run test:operations-browser
+      - name: Exercise full browser workflow against real PostgreSQL
+        run: npm run test:operations-browser
+        env:
+          NEXUS_OPERATIONS_BROWSER_DATABASE_URL: postgresql+asyncpg://nexus_test:test_only_password@localhost:5432/postgres
       - run: uv run pip-audit
       - name: Scan complete reachable history for secrets
         run: >-

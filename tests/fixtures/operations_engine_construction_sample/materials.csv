@@ -1,0 +1,2 @@
+id,name,unit,stock,supplier_lead_days,deliveries
+steel,Steel,tonne,3,5,"[{""id"":""steel-1"",""quantity"":5,""expected_day"":8}]"

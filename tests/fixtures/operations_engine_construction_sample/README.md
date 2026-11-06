@@ -1,0 +1,1 @@
+Synthetic example data, not an actual project. Nested CSV fields use JSON. The settings file supplies the shared calendar, budget and horizon. Import each CSV as its named list and parse nested JSON cells.

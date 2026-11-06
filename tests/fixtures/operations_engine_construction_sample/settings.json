@@ -1,0 +1,18 @@
+{
+  "name": "Synthetic two-project example",
+  "start_date": "2026-01-05",
+  "horizon_days": 180,
+  "working_days": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "weather_delays": [
+    "2026-01-12",
+    "2026-01-26",
+    "2026-02-09"
+  ],
+  "budget": 160000
+}

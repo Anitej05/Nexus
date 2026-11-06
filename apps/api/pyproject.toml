@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "NEXUS API"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "fastapi>=0.141.1",
     "nexus-contracts",
     "nexus-llm",
