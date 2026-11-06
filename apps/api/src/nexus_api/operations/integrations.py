@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
@@ -26,24 +27,35 @@ def _key() -> str:
     return key
 
 
-async def _request(method: str, url: str, **kwargs: Any) -> dict[str, Any]:
+async def _request(
+    method: str, url: str, *, limit_seconds: float = 15, **kwargs: Any
+) -> dict[str, Any]:
     try:
-        async with httpx.AsyncClient(
-            timeout=45, transport=_transport, follow_redirects=False
-        ) as client:
-            async with client.stream(method, url, **kwargs) as response:
-                response.raise_for_status()
-                content = bytearray()
-                async for chunk in response.aiter_bytes():
-                    content.extend(chunk)
-                    if len(content) > 1024 * 1024:
-                        raise IntegrationError("External service response exceeds size limit")
-                data = json.loads(content)
+        async with asyncio.timeout(limit_seconds):
+            async with httpx.AsyncClient(
+                timeout=limit_seconds, transport=_transport, follow_redirects=False
+            ) as client:
+                async with client.stream(method, url, **kwargs) as response:
+                    response.raise_for_status()
+                    content = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        content.extend(chunk)
+                        if len(content) > 1024 * 1024:
+                            raise IntegrationError("External service response exceeds size limit")
+                    data = json.loads(content)
         if not isinstance(data, dict):
             raise IntegrationError("External service returned an invalid response")
         return data
-    except (httpx.HTTPError, ValueError) as exc:
-        raise IntegrationError("External service request failed or returned invalid JSON") from exc
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        raise IntegrationError("External service request timed out") from exc
+    except httpx.HTTPStatusError as exc:
+        raise IntegrationError(
+            f"External service returned HTTP {exc.response.status_code}"
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise IntegrationError("External service connection failed") from exc
+    except (ValueError, UnicodeError) as exc:
+        raise IntegrationError("External service returned invalid JSON") from exc
 
 
 async def fetch_weather(lat: float, long: float) -> dict[str, Any]:
@@ -130,32 +142,55 @@ async def advise(analysis: dict[str, Any], question: str) -> dict[str, Any]:
         }
         context = json.dumps(
             {
-                k: analysis.get(k)
-                for k in (
-                    "graph",
-                    "metrics",
-                    "activities",
-                    "risks",
-                    "forecast",
-                    "cost",
-                    "assumptions",
-                    "infeasible",
-                    "alternatives",
-                )
+                **{
+                    k: analysis.get(k)
+                    for k in (
+                        "graph",
+                        "metrics",
+                        "risks",
+                        "forecast",
+                        "cost",
+                        "assumptions",
+                        "infeasible",
+                        "alternatives",
+                    )
+                },
+                "allowed_evidence_ids": sorted(ids),
+                "activity_schedule": [
+                    {
+                        k: activity[k]
+                        for k in (
+                            "id",
+                            "start_date",
+                            "finish_date",
+                            "critical",
+                            "dependency_impact_days",
+                        )
+                        if k in activity
+                    }
+                    for activity in analysis.get("activities", [])
+                ],
             },
             allow_nan=False,
+            separators=(",", ":"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Invalid analysis") from exc
-    if len(context) > 100000:
-        raise ValueError("Analysis is too large for advisor")
-    model = os.getenv("NEXUS_LLM_MODEL", "stepfun-ai/step-5-preview")
+    if len(context.encode("utf-8")) > 16384:
+        raise ValueError("Analysis is too large for advisor (16 KiB limit)")
+    model = os.getenv("NEXUS_LLM_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
     result = await _request(
         "POST",
         f"{NVIDIA}/chat/completions",
+        limit_seconds=90,
         headers={"Authorization": f"Bearer {_key()}"},
         json={
             "model": model,
+            **(
+                {"chat_template_kwargs": {"enable_thinking": False}}
+                if model == "nvidia/nemotron-3-ultra-550b-a55b"
+                else {}
+            ),
             "temperature": 0.1,
             "max_tokens": 4096,
             "response_format": {"type": "json_object"},
@@ -165,7 +200,8 @@ async def advise(analysis: dict[str, Any], question: str) -> dict[str, Any]:
                     "content": "You are a read-only operations advisor. "
                     "Use only supplied analysis as evidence. "
                     "Never claim to perform actions. Return JSON with answer (string) and "
-                    "evidence_ids (array of exact graph node IDs). State uncertainty; "
+                    "evidence_ids (array of exact IDs from allowed_evidence_ids). "
+                    "Never cite section names or JSON keys. State uncertainty; "
                     "no fabricated facts. Only report shortages or infeasibility when the "
                     "infeasible list reports them; missing data is unknown. "
                     "Keep the answer under 150 words.",

@@ -91,3 +91,54 @@ async def test_provider_response_size_is_bounded(monkeypatch):
     )
     with pytest.raises(IntegrationError):
         await list_models()
+
+
+@pytest.mark.asyncio
+async def test_safe_provider_timeout_and_status(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "secret-test")
+
+    async def timeout_handler(request):
+        raise httpx.ReadTimeout("private provider details", request=request)
+
+    monkeypatch.setattr(
+        "nexus_api.operations.integrations._transport", httpx.MockTransport(timeout_handler)
+    )
+    with pytest.raises(IntegrationError, match="timed out") as error:
+        await list_models()
+    assert "private" not in str(error.value)
+
+    async def error_handler(request):
+        return httpx.Response(429, text="private provider details")
+
+    monkeypatch.setattr(
+        "nexus_api.operations.integrations._transport", httpx.MockTransport(error_handler)
+    )
+    with pytest.raises(IntegrationError, match="429") as error:
+        await list_models()
+    assert "private" not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_ultra_uses_documented_fast_reasoning_mode(monkeypatch):
+    import json
+
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-secret")
+    monkeypatch.setenv("NEXUS_LLM_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
+
+    async def handler(request):
+        body = json.loads(request.content)
+        assert body["model"] == "nvidia/nemotron-3-ultra-550b-a55b"
+        assert body["chat_template_kwargs"] == {"enable_thinking": False}
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": '{"answer":"Review A", "evidence_ids":["a"]}'}}]
+            },
+        )
+
+    monkeypatch.setattr(
+        "nexus_api.operations.integrations._transport", httpx.MockTransport(handler)
+    )
+    assert (await advise({"graph": {"nodes": [{"id": "a"}], "edges": []}}, "What matters?"))[
+        "evidence_ids"
+    ] == ["a"]

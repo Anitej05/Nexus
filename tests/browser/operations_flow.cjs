@@ -123,12 +123,12 @@ async function main() {
     if(process.env.NEXUS_OPERATIONS_LIVE_WEATHER==='1'){await page.fill('#latitude','13.08');await page.fill('#longitude','80.27');await page.locator('#weather-form button').click();await waitStatus('Weather observation fetched');const weather=JSON.parse(await page.locator('#weather').textContent());assert.equal(weather.source,'Open-Meteo');assert.equal(weather.daily.time.length,7)}
     if(process.env.NEXUS_OPERATIONS_LIVE_ADVICE==='1'){
       await page.click('#models-load');await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('model catalog loaded'),{},{timeout:60000});
-      assert.match(await page.locator('#models').textContent(),/stepfun-ai\/step-5-preview/);
+      assert.match(await page.locator('#models').textContent(),/nvidia\/nemotron-3-ultra-550b-a55b/);
       await page.fill('#advice-question','Summarize the computed forecast and the single most useful feasible capacity alternative. Cite exact graph IDs. Do not invent shortages.');
-      const pending=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/integrations/advice'),{timeout:65000});
+      const pending=page.waitForResponse(r=>new URL(r.url()).pathname.endsWith('/integrations/advice'),{timeout:110000});
       await page.locator('#advice-form button').click();const response=await pending;
       assert.ok(response.ok(),`${response.status()} ${await response.text()}`);
-      const advice=await response.json();assert.equal(advice.model,'stepfun-ai/step-5-preview');assert.ok(advice.evidence_ids.length);
+      const advice=await response.json();assert.equal(advice.model,'nvidia/nemotron-3-ultra-550b-a55b');assert.ok(advice.evidence_ids.length);
       await waitStatus('Advisory response received');
       console.log(JSON.stringify({liveAdvisor:advice.model,evidenceIds:advice.evidence_ids,answer:advice.answer}));
     }
@@ -147,6 +147,7 @@ async function main() {
     await page.click('#sample');await waitStatus('Dataset version persisted');
     await page.click('#analyze');await waitStatus('Forecast recomputed');
     assert.match(await page.locator('#revision').textContent(),/manufacturing/);
+    const manufacturing=JSON.parse(await page.locator('#dataset-editor').inputValue());const defaultChanges=JSON.parse(await page.locator('#scenario-changes').inputValue());assert.equal(defaultChanges[0].path,`/resources/${manufacturing.resources[0].id}/capacity`);await page.locator('#scenario-form button').click();await waitStatus('Branch modelled');assert.equal(await page.locator('#scenarios button').count(),1);
     if(!process.env.OPERATIONS_BASE_URL){await stopOwnedServer(server);await start();await page.reload();await waitStatus('Session ready');if(await page.locator('#auth').isVisible())await login('operations-owner','OwnerPass!2026');await choose(workspaceId);assert.equal(await page.locator('#revision').textContent(),revision);assert.equal(JSON.parse(await page.locator('#dataset-editor').inputValue()).resources[0].capacity,resource.capacity+1)}
     assert.equal(await page.locator('nextjs-portal,vite-error-overlay,#webpack-dev-server-client-overlay').count(),0);
     assert.deepEqual(errors,[]);

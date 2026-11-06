@@ -176,3 +176,16 @@ def test_graph_includes_supply_and_capacity_evidence():
     assert nodes["steel"]["stock"] == 3
     assert nodes["crew"]["capacity"] == 1
     assert nodes["@delivery/steel/steel-1"]["expected_day"] == 8
+
+
+def test_sensitivity_beyond_horizon_is_not_zero_impact():
+    payload = sample_payload("manufacturing")
+    payload["tasks"] = [payload["tasks"][0]]
+    payload["tasks"][0].update(
+        quantity=5, remaining_quantity=5, productivity=5, minimum_duration=1, uncertainty=0
+    )
+    payload["horizon_days"] = 1
+    activity = analyze_domain("manufacturing", payload, samples=1)["activities"][0]
+    assert activity["dependency_impact_days"] is None
+    assert activity["critical"] is True
+    assert activity["impact_status"] == "beyond_horizon"

@@ -298,12 +298,16 @@ def analyze(p: dict[str, Any], seed: int, samples: int, domain: str) -> dict[str
             trial_finish = max(
                 (a["finish_date"] for a in trial if "finish_date" in a), default=None
             )
-            activity["dependency_impact_days"] = (
-                (date.fromisoformat(trial_finish) - date.fromisoformat(finish)).days
-                if trial_finish and not trial_errors
-                else 0
-            )
-            activity["critical"] = activity["dependency_impact_days"] > 0
+            if trial_errors or not trial_finish:
+                activity["dependency_impact_days"] = None
+                activity["critical"] = True
+                activity["impact_status"] = "beyond_horizon"
+            else:
+                activity["dependency_impact_days"] = (
+                    date.fromisoformat(trial_finish) - date.fromisoformat(finish)
+                ).days
+                activity["critical"] = activity["dependency_impact_days"] > 0
+                activity["impact_status"] = "measured"
     alternatives = []
     if finish:
         for resource in p["resources"]:

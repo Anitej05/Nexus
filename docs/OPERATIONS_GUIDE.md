@@ -47,6 +47,7 @@ remain in workspace versions. To record actual progress, update remaining quanti
 stock/delivery assumptions, then save a new version and recompute. Material task quantities mean
 remaining material demands, so revise those together with progress. This is manual observed input,
 not an automatic connection to a building site.
+Set `start_date` to the new forecast's as-of date and adjust delivery day offsets relative to it.
 
 ## Forecast and branch workflow
 
@@ -83,17 +84,17 @@ not sample responses.
 
 NVIDIA model discovery and advisory use https://integrate.api.nvidia.com/v1. Configure
 `NVIDIA_API_KEY` in the process environment, or in ignored `.env.operations`. Set
-`NEXUS_LLM_MODEL` to override the default `stepfun-ai/step-5-preview`. Never commit the key.
+`NEXUS_LLM_MODEL` to override the default `nvidia/nemotron-3-ultra-550b-a55b`. Never commit the key.
 The launcher reads only those two names from that file. The advisor receives the current
 analysis and your question; use synthetic/non-sensitive inputs when evaluating hosted models.
 It is read-only, and validates that cited graph IDs actually exist. Citation validation does not
 prove every natural-language claim correct; a person should assess its reasoning. Invalid or
 unavailable responses are explicit integration failures.
 
-The initial live check selected Step 5 Preview after it returned validated evidence references;
-Mistral Large 4 timed out in the same comparison. This is a single evaluation, not a latency
-benchmark or an availability guarantee. Provider behaviour and model availability can change.
-See NVIDIA's [Step 5 Preview reference](https://build.nvidia.com/stepfun-ai/step-5-preview/build).
+Nemotron 3 Ultra is the selected model. Provider behaviour and model availability can change;
+responses have a bounded deadline and failures remain explicit. The advisor's evidence payload
+is limited to 16 KiB; oversized analyses are rejected rather than silently truncated.
+See NVIDIA's [Nemotron 3 Ultra reference](https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b).
 
 ## Verification
 
