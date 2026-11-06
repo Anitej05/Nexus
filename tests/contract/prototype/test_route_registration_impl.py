@@ -31,6 +31,7 @@ def test_real_app_registers_all_seven_frozen_prototype_operations() -> None:
         and (route.path == "/prototype" or route.path.startswith("/api/v1/prototype"))
     }
     assert operations == {
+        "listPrototypeScenarios": ("GET", "/api/v1/prototype/scenarios"),
         "createPrototypeRun": ("POST", "/api/v1/prototype/runs"),
         "getPrototypeRun": ("GET", "/api/v1/prototype/runs/{run_id}"),
         "getPrototypeGraph": ("GET", "/api/v1/prototype/runs/{run_id}/graph"),
@@ -186,7 +187,8 @@ def test_rendered_compose_passes_bounded_llm_settings_to_api() -> None:
         "NEXUS_PROTOTYPE_LLM_API_KEY": "prototype-contract-key",
     }
     docker = shutil.which("docker")
-    assert docker is not None
+    if docker is None:
+        pytest.skip("Docker Compose CLI is required to render the deployment configuration")
     rendered = subprocess.run(  # noqa: S603 -- exact docker path, fixed arguments.
         [
             docker,

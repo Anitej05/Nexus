@@ -6,9 +6,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from hashlib import sha256
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).parents[2]
 COMPOSE = ROOT / "infrastructure" / "compose" / "compose.yml"
@@ -29,6 +32,7 @@ EXPECTED_PUBLISHED_PORTS = {
 CANONICAL_APACHE_2_LF_SHA256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
 
 
+@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose CLI is not installed")
 def test_effective_local_compose_publishes_only_on_loopback() -> None:
     """Removing a loopback host binding must expose this test failure."""
     result = subprocess.run(

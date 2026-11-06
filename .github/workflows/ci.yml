@@ -36,6 +36,9 @@ jobs:
       - run: uv run mypy apps packages
       - run: uv run pytest packages/contracts/tests packages/prototype/tests tests/unit tests/contract tests/security -q
       - run: node --test apps/api/src/nexus_api/static/prototype/prototype.behavior.test.cjs
+      - run: uv run python scripts/evaluate_academic.py --repetitions 5
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:academic-browser
       - run: uv run pip-audit
       - name: Scan complete reachable history for secrets
         run: >-

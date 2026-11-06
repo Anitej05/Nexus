@@ -21,6 +21,7 @@ def test_api_metadata_and_context_are_stable() -> None:
     assert set(app.openapi()["paths"]) == {
         "/api/v1/audit/events",
         "/api/v1/prototype/runs",
+        "/api/v1/prototype/scenarios",
         "/api/v1/prototype/runs/{run_id}",
         "/api/v1/prototype/runs/{run_id}/approval",
         "/api/v1/prototype/runs/{run_id}/execute",

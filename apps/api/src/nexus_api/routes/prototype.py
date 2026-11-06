@@ -37,6 +37,7 @@ from nexus_api.prototype.models import (
     PrototypeRunView,
     PrototypeTrace,
 )
+from nexus_api.prototype.seed import scenario_catalog
 from nexus_api.prototype.service import (
     PrototypeConflict,
     PrototypeController,
@@ -288,6 +289,14 @@ async def _project(context: RequestContext, result: Awaitable[ResultT]) -> Resul
             "Prototype dependency unavailable",
             "A required prototype dependency is unavailable.",
         )
+
+
+@router.get("/api/v1/prototype/scenarios", operation_id="listPrototypeScenarios")
+async def list_prototype_scenarios(
+    context: Annotated[RequestContext, Depends(require_context)],
+) -> dict[str, tuple[dict[str, str], ...]]:
+    del context
+    return {"scenarios": scenario_catalog()}
 
 
 @router.post(

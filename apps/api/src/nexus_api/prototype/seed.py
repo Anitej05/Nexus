@@ -63,10 +63,107 @@ def build_prototype_graph() -> PrototypeGraph:
     )
 
 
+# Inputs are controlled teaching examples, not live telemetry.
+SCENARIOS: dict[str, tuple[str, str, float, float, float]] = {
+    SCENARIO_ID: (
+        "Storm and checkout shift",
+        "Port closure and checkout latency coincide.",
+        28.0,
+        3.0,
+        4.0,
+    ),
+    "supply-stable-v1": (
+        "Stable supply",
+        "A short port interruption with limited service impact.",
+        8.0,
+        1.0,
+        1.0,
+    ),
+    "it-heavy-v1": (
+        "IT incident",
+        "Severe checkout latency with moderate shipment delay.",
+        12.0,
+        1.0,
+        8.0,
+    ),
+    "supply-heavy-v1": (
+        "Supply disruption",
+        "Severe shipment disruption with limited IT impact.",
+        48.0,
+        3.0,
+        1.0,
+    ),
+}
+
+
+def scenario_catalog() -> tuple[dict[str, str], ...]:
+    return tuple(
+        {"scenario_id": key, "title": value[0], "description": value[1]}
+        for key, value in SCENARIOS.items()
+    )
+
+
+def scenario_inputs(scenario_id: str) -> tuple[float, float, float]:
+    try:
+        return SCENARIOS[scenario_id][2:]
+    except KeyError as error:
+        raise ValueError("unsupported prototype scenario") from error
+
+
 def build_projection(scenario_id: str) -> PrototypeGraph:
-    if scenario_id != SCENARIO_ID:
-        raise ValueError("unsupported prototype scenario")
-    return build_prototype_graph()
+    delay, shipments, latency = scenario_inputs(scenario_id)
+    graph = build_prototype_graph()
+    if scenario_id == SCENARIO_ID:
+        return graph
+    material = graph.model_dump(mode="json")
+    material["scenario_id"] = scenario_id
+    for node in material["nodes"]:
+        if node["id"] == "PORT-MAA":
+            node["label"] = "Maa port disruption"
+    material["nodes"].extend(
+        node.model_dump(mode="json")
+        for node in (
+            PrototypeGraphNode(
+                id="input-delay-hours",
+                type="ScenarioInput",
+                label=f"Baseline delay hours: {delay:g}",
+            ),
+            PrototypeGraphNode(
+                id="input-affected-shipments",
+                type="ScenarioInput",
+                label=f"Affected shipments: {shipments:g}",
+            ),
+            PrototypeGraphNode(
+                id="input-latency-minutes",
+                type="ScenarioInput",
+                label=f"Latency shift minutes: {latency:g}",
+            ),
+        )
+    )
+    if shipments == 1:
+        material["edges"] = [
+            edge
+            for edge in material["edges"]
+            if not (edge["source"] == "PORT-MAA" and edge["target"] in ("SHP-0047", "SHP-0051"))
+        ]
+    material.pop("seed_digest")
+    return PrototypeGraph(
+        **material, seed_digest=hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+    )
+
+
+def projection_inputs(graph: PrototypeGraph) -> tuple[float, float, float]:
+    """Read the measurements from a validated, canonical graph projection."""
+    if graph != build_projection(graph.scenario_id):
+        raise ValueError("prototype graph does not match the canonical scenario")
+    if graph.scenario_id == SCENARIO_ID:
+        return (28.0, 3.0, 4.0)  # Historical graph has no input nodes.
+    nodes = {node.id: node for node in graph.nodes}
+    return (
+        float(nodes["input-delay-hours"].label.rsplit(": ", 1)[1]),
+        float(nodes["input-affected-shipments"].label.rsplit(": ", 1)[1]),
+        float(nodes["input-latency-minutes"].label.rsplit(": ", 1)[1]),
+    )
 
 
 def canonical_seed_bytes(value: PrototypeGraph | Mapping[str, Any]) -> bytes:

@@ -16,9 +16,11 @@ from nexus_api.prototype.models import (
     PrototypeAdvisory,
     PrototypeAgentFinding,
     PrototypeGraph,
+    PrototypeOption,
     PrototypeOrchestrationResult,
     PrototypePlan,
     PrototypeSignal,
+    PrototypeVerification,
 )
 from nexus_api.prototype.risk import incident_risk_signal, supply_risk_signal
 
@@ -47,13 +49,25 @@ class DeterministicAdvisoryFacade:
         context: RequestContext | None,
         idempotency_key: str,
     ) -> PrototypeAdvisory:
-        del graph, signals, findings, context, idempotency_key
-        summary = b"Supply and IT risks exceed their fixed thresholds; human review is required."
+        del findings, context, idempotency_key
+        summary = (
+            "Supply and IT risks exceed their fixed thresholds; human review is required."
+            if graph.scenario_id == "storm-and-checkout-shift-v1"
+            else (
+                f"Supply risk {signals[0].score:.2f} and IT risk {signals[1].score:.2f}; "
+                "human review is required. These are simulated estimates."
+            )
+        )
         return PrototypeAdvisory(
             provider_status="unavailable",
             model_id="deepseek-ai/DeepSeek-V4-Flash-0731",
-            summary_sha256=hashlib.sha256(summary).hexdigest(),
-            citation_node_ids=("PORT-MAA", "SHP-0042", "DEP-882", "svc-checkout"),
+            summary=summary,
+            summary_sha256=hashlib.sha256(summary.encode()).hexdigest(),
+            citation_node_ids=(
+                ("PORT-MAA", "SHP-0042", "DEP-882", "svc-checkout")
+                if graph.scenario_id == "storm-and-checkout-shift-v1"
+                else ("input-delay-hours", "input-affected-shipments", "input-latency-minutes")
+            ),
         )
 
 
@@ -64,7 +78,9 @@ async def _supply_specialist(
     return signal, PrototypeAgentFinding(
         agent_role="supply_risk_analyst",
         status="completed",
-        finding_code="supply_delay_threshold_exceeded",
+        finding_code="supply_delay_threshold_exceeded"
+        if signal.score >= signal.threshold
+        else "supply_delay_below_threshold",
         evidence_node_ids=signal.evidence_node_ids,
         uncertainty_code="Deterministic projection; no live logistics telemetry",
     )
@@ -75,21 +91,66 @@ async def _it_specialist(graph: PrototypeGraph) -> tuple[PrototypeSignal, Protot
     return signal, PrototypeAgentFinding(
         agent_role="it_incident_analyst",
         status="completed",
-        finding_code="incident_risk_threshold_exceeded",
+        finding_code="incident_risk_threshold_exceeded"
+        if signal.score >= signal.threshold
+        else "incident_risk_below_threshold",
         evidence_node_ids=signal.evidence_node_ids,
         uncertainty_code="Temporal association; not a deployment root-cause proof",
     )
 
 
-def build_prototype_plan() -> PrototypePlan:
-    material = {
+def build_prototype_plan(graph: PrototypeGraph | None = None) -> PrototypePlan:
+    from nexus_api.prototype.seed import SCENARIO_ID, build_prototype_graph, projection_inputs
+
+    graph = graph or build_prototype_graph()
+    scenario_id = graph.scenario_id
+    baseline, _, _ = projection_inputs(graph)
+    reduction = round(baseline * 0.5, 2)
+    material: dict[str, Any] = {
         "action_kind": "simulated_reroute",
         "destination": "sim://reroute/PORT-MAA",
         "expected_effect": "reduce_predicted_delay_by_14_hours",
         "risk_class": "R3",
         "target_id": "SHP-0042",
     }
-    return PrototypePlan(plan_hash=hashlib.sha256(canonical_json_bytes(material)).hexdigest())
+    if scenario_id != SCENARIO_ID:
+        material.update(
+            scenario_id=scenario_id,
+            seed_digest=graph.seed_digest,
+            inputs_version="scenario-inputs.v1",
+            baseline_delay_hours=baseline,
+            expected_delay_reduction_hours=reduction,
+        )
+        material["expected_effect"] = f"reduce_predicted_delay_by_{reduction:g}_hours"
+    return PrototypePlan(
+        plan_hash=hashlib.sha256(canonical_json_bytes(material)).hexdigest(),
+        expected_effect=material["expected_effect"],
+        baseline_delay_hours=baseline,
+        expected_delay_reduction_hours=reduction,
+        options=(
+            PrototypeOption(
+                option_id="no_action", projected_delay_hours=baseline, delay_reduction_hours=0.0
+            ),
+            PrototypeOption(
+                option_id="simulated_reroute",
+                projected_delay_hours=baseline - reduction,
+                delay_reduction_hours=reduction,
+            ),
+        ),
+    )
+
+
+def calculate_verification(plan: PrototypePlan, receipt_id: str) -> PrototypeVerification:
+    return PrototypeVerification(
+        receipt_id=receipt_id,
+        status="verified",
+        verified_effect="delay_reduced",
+        baseline_delay_hours=plan.baseline_delay_hours,
+        observed_delay_hours=round(
+            plan.baseline_delay_hours - plan.expected_delay_reduction_hours, 2
+        ),
+        delay_reduction_hours=plan.expected_delay_reduction_hours,
+    )
 
 
 class PrototypeOrchestrator:
@@ -108,7 +169,9 @@ class PrototypeOrchestrator:
         critic = PrototypeAgentFinding(
             agent_role="decision_critic",
             status="completed",
-            finding_code="cross_domain_priority_correlated",
+            finding_code="cross_domain_priority_correlated"
+            if all(signal.score >= signal.threshold for signal in signals)
+            else "cross_domain_priority_review",
             evidence_node_ids=("shift-2026-08-09", "PORT-MAA", "DEP-882"),
             uncertainty_code="Correlated operational priority, not a proven causal link",
         )
@@ -117,7 +180,7 @@ class PrototypeOrchestrator:
             graph, signals, findings, context=context, idempotency_key=idempotency_key
         )
         return PrototypeOrchestrationResult(
-            signals=signals, findings=findings, advisory=advisory, plan=build_prototype_plan()
+            signals=signals, findings=findings, advisory=advisory, plan=build_prototype_plan(graph)
         )
 
 

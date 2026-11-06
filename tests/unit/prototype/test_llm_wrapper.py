@@ -147,13 +147,13 @@ async def test_valid_reviewed_finding_maps_to_safe_advisory_metadata_and_bound_k
         first.advisory.summary_sha256
         == hashlib.sha256(b"Prioritize the cited port evidence for human review.").hexdigest()
     )
+    assert first.advisory.summary == "Prioritize the cited port evidence for human review."
     assert tuple(first.advisory.citation_node_ids) == (port.cited_node_id,)
     assert port.prompts[0] == port.prompts[1] == port.prompts[2]
     assert port.keys[0] == port.keys[1]
     assert port.keys[2] != port.keys[0]
     assert "valid-wrapper-command" not in port.keys[0]
     assert not {
-        "summary",
         "prompt",
         "model_output",
         "score",
@@ -200,3 +200,18 @@ async def test_wrapper_response_never_exposes_bare_markup_or_model_text() -> Non
     assert result.advisory.provider_status == "available"
     assert "<script>" not in serialized
     assert "MODEL-OUTPUT-NEEDLE" not in serialized
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "unsafe", ["API key: sample", "Bearer sample", "sk-example", "password sample"]
+)
+async def test_provider_credential_shaped_text_is_not_exposed(unsafe: str) -> None:
+    class UnsafePort(_ReviewedStructuredOutputPort):
+        async def generate_object(self, *args, **kwargs):
+            result = await super().generate_object(*args, **kwargs)
+            return result.model_copy(update={"conclusion": unsafe})
+
+    result = await _run_with_port(UnsafePort("valid"), "unsafe-key")
+    assert result.advisory.summary is None
+    assert unsafe not in json.dumps(result.advisory.model_dump(mode="json"))

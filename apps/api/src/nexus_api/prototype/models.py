@@ -9,7 +9,9 @@ from typing import Literal
 from nexus_contracts.platform import FrozenContract
 from pydantic import UUID7, Field
 
-ScenarioId = Literal["storm-and-checkout-shift-v1"]
+ScenarioId = Literal[
+    "storm-and-checkout-shift-v1", "supply-stable-v1", "it-heavy-v1", "supply-heavy-v1"
+]
 RunStatus = Literal["awaiting_approval", "approved", "rejected", "executed", "verified"]
 AgentRole = Literal["supply_risk_analyst", "it_incident_analyst", "decision_critic"]
 ProviderStatus = Literal[
@@ -83,17 +85,25 @@ class PrototypeAdvisory(FrozenPrototypeContract):
     provider_status: ProviderStatus
     model_id: str = Field(min_length=1, max_length=128)
     prompt_version: PromptVersion = "prototype-briefing.v1"
+    summary: str | None = Field(default=None, max_length=1000)
     summary_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     citation_node_ids: tuple[str, ...]
+
+
+class PrototypeOption(FrozenPrototypeContract):
+    option_id: Literal["no_action", "simulated_reroute"]
+    projected_delay_hours: float = Field(ge=0, le=168)
+    delay_reduction_hours: float = Field(ge=0, le=168)
 
 
 class PrototypePlan(FrozenPrototypeContract):
     action_kind: Literal["simulated_reroute"] = "simulated_reroute"
     target_id: Literal["SHP-0042"] = "SHP-0042"
     destination: Literal["sim://reroute/PORT-MAA"] = "sim://reroute/PORT-MAA"
-    expected_effect: Literal["reduce_predicted_delay_by_14_hours"] = (
-        "reduce_predicted_delay_by_14_hours"
-    )
+    expected_effect: str = "reduce_predicted_delay_by_14_hours"
+    baseline_delay_hours: float = Field(default=28.0, ge=0, le=168)
+    expected_delay_reduction_hours: float = Field(default=14.0, ge=0, le=168)
+    options: tuple[PrototypeOption, ...] = ()
     risk_class: Literal["R3"] = "R3"
     plan_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     status: Literal["awaiting_approval"] = "awaiting_approval"
@@ -117,7 +127,9 @@ class PrototypeVerification(FrozenPrototypeContract):
     receipt_id: str = Field(min_length=1, max_length=128)
     status: Literal["verified"] = "verified"
     verified_effect: Literal["delay_reduced"] = "delay_reduced"
+    baseline_delay_hours: float = Field(default=28.0, ge=0, le=168)
     observed_delay_hours: float = Field(ge=0, le=168)
+    delay_reduction_hours: float = Field(default=14.0, ge=0, le=168)
 
 
 class PrototypeAuditRef(FrozenPrototypeContract):

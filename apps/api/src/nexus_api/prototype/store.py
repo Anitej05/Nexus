@@ -35,9 +35,9 @@ from nexus_api.prototype.models import (
     PrototypeVerification,
     RunStatus,
 )
-from nexus_api.prototype.orchestrator import build_prototype_plan
+from nexus_api.prototype.orchestrator import build_prototype_plan, calculate_verification
 from nexus_api.prototype.risk import incident_risk_signal, supply_risk_signal
-from nexus_api.prototype.seed import build_prototype_graph
+from nexus_api.prototype.seed import build_projection
 
 
 class PrototypeStateError(RuntimeError):
@@ -71,6 +71,7 @@ def prototype_payload_registry() -> AuditPayloadRegistry:
         },
         "prototype.briefing.generated": {
             "provider_status": str,
+            "summary": (str, type(None)),
             "summary_sha256": str,
             "citation_node_ids": list,
             "model_id": str,
@@ -104,7 +105,9 @@ def prototype_payload_registry() -> AuditPayloadRegistry:
             "receipt_id": str,
             "status": str,
             "verified_effect": str,
+            "baseline_delay_hours": float,
             "observed_delay_hours": float,
+            "delay_reduction_hours": float,
             "policy_operation": str,
         },
     }
@@ -185,7 +188,10 @@ def reduce_prototype_events(
         raise PrototypeStateError("mixed prototype event representations")
     audited = cast(Sequence[AuditEvent], events)
     created = audited[0]
-    graph = build_prototype_graph()
+    try:
+        graph = build_projection(str(created.public_payload.get("scenario_id")))
+    except ValueError as error:
+        raise PrototypeStateError("unknown prototype scenario") from error
     if any(
         event.tenant_id != created.tenant_id
         or event.resource.tenant_id != created.tenant_id
@@ -228,21 +234,27 @@ def reduce_prototype_events(
         PrototypeAgentFinding(
             agent_role="supply_risk_analyst",
             status="completed",
-            finding_code="supply_delay_threshold_exceeded",
+            finding_code="supply_delay_threshold_exceeded"
+            if expected_signals[0].score >= expected_signals[0].threshold
+            else "supply_delay_below_threshold",
             evidence_node_ids=expected_signals[0].evidence_node_ids,
             uncertainty_code="Deterministic projection; no live logistics telemetry",
         ),
         PrototypeAgentFinding(
             agent_role="it_incident_analyst",
             status="completed",
-            finding_code="incident_risk_threshold_exceeded",
+            finding_code="incident_risk_threshold_exceeded"
+            if expected_signals[1].score >= expected_signals[1].threshold
+            else "incident_risk_below_threshold",
             evidence_node_ids=expected_signals[1].evidence_node_ids,
             uncertainty_code="Temporal association; not a deployment root-cause proof",
         ),
         PrototypeAgentFinding(
             agent_role="decision_critic",
             status="completed",
-            finding_code="cross_domain_priority_correlated",
+            finding_code="cross_domain_priority_correlated"
+            if all(signal.score >= signal.threshold for signal in expected_signals)
+            else "cross_domain_priority_review",
             evidence_node_ids=("shift-2026-08-09", "PORT-MAA", "DEP-882"),
             uncertainty_code="Correlated operational priority, not a proven causal link",
         ),
@@ -251,17 +263,26 @@ def reduce_prototype_events(
         raise PrototypeStateError("invalid prototype specialist order")
     try:
         advisory = PrototypeAdvisory.model_validate(_model_payload(audited[6]))
+        expected_plan = build_prototype_plan(graph)
         plan = PrototypePlan.model_validate(
             {
                 **_model_payload(audited[7]),
-                "expected_effect": "reduce_predicted_delay_by_14_hours",
+                "expected_effect": expected_plan.expected_effect,
+                "baseline_delay_hours": expected_plan.baseline_delay_hours,
+                "expected_delay_reduction_hours": expected_plan.expected_delay_reduction_hours,
+                "options": expected_plan.options,
             }
         )
     except ValidationError as error:
         raise PrototypeStateError("invalid prototype briefing or plan") from error
     if not set(advisory.citation_node_ids) <= {node.id for node in graph.nodes}:
         raise PrototypeStateError("prototype briefing cites unknown evidence")
-    if plan != build_prototype_plan():
+    if (
+        advisory.summary is not None
+        and hashlib.sha256(advisory.summary.encode()).hexdigest() != advisory.summary_sha256
+    ):
+        raise PrototypeStateError("prototype briefing hash mismatch")
+    if plan != expected_plan:
         raise PrototypeStateError("prototype plan does not match frozen plan")
     approval = None
     execution = None
@@ -285,7 +306,13 @@ def reduce_prototype_events(
             raise PrototypeStateError("action requires approval")
         try:
             execution = PrototypeExecution.model_validate(_model_payload(audited[9]))
-            verification = PrototypeVerification.model_validate(_model_payload(audited[10]))
+            verification_payload = _model_payload(audited[10])
+            if (
+                "baseline_delay_hours" not in verification_payload
+                and graph.scenario_id != "storm-and-checkout-shift-v1"
+            ):
+                raise PrototypeStateError("missing simulator inputs")
+            verification = PrototypeVerification.model_validate(verification_payload)
         except ValidationError as error:
             raise PrototypeStateError("invalid execution or verification") from error
         if execution.plan_hash != plan.plan_hash or verification.receipt_id != execution.receipt_id:
@@ -295,7 +322,7 @@ def reduce_prototype_events(
             or audited[10].actor.actor_id != created.actor.actor_id
         ):
             raise PrototypeStateError("execution actor is invalid")
-        if verification.observed_delay_hours != 14.0:
+        if verification != calculate_verification(plan, execution.receipt_id):
             raise PrototypeStateError("verification does not match fixed simulator")
         status = "verified"
     return PrototypeRunView(

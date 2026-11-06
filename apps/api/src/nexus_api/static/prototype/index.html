@@ -54,7 +54,7 @@
     code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
     .run-ref code { display: block; max-width: 360px; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
     .upper { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .52fr); min-width: 0; gap: 10px; }
-    .lower { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .85fr); min-width: 0; gap: 10px; margin-top: 10px; }
+    .lower { align-items:start; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(340px, .85fr); min-width: 0; gap: 10px; margin-top: 10px; }
     .panel { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(155deg, rgba(13,41,51,.96), rgba(6,24,32,.96)); }
     .panel-head { display: flex; min-height: 42px; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
     .panel-head h2 { margin: 0; font-size: .78rem; font-weight: 760; letter-spacing: .025em; text-transform: uppercase; }
@@ -115,7 +115,9 @@
     .button[aria-pressed="true"] { border-color: var(--cyan); background: rgba(100,224,222,.12); color: var(--cyan); }
     .locked { padding: 9px; border: 1px solid rgba(255,116,111,.46); border-radius: 5px; background: rgba(255,116,111,.08); color: #ffb4b0; font-size: .68rem; line-height: 1.4; }
     .notice { min-height: 16px; margin: 8px 0 0; color: var(--muted); font-size: .64rem; line-height: 1.4; }
-    .connect { display:flex; align-items:center; gap:8px; padding:8px 0; }
+    .connect { flex-wrap:wrap; display:flex; align-items:center; gap:8px; padding:8px 0; }
+    #graph-scroll, #signals-content, #findings-content, #trace-content { white-space:pre-wrap; overflow-wrap:anywhere; }
+    select { max-width:100%; padding:7px; background:#081115; color:var(--text); }
     .connect label { color:var(--muted); font-size:.64rem; }
     .connect input { width:min(380px,55vw); padding:7px 9px; border:1px solid var(--line-strong); border-radius:5px; background:#081115; color:var(--text); }
     .status-card { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1px; border: 1px solid rgba(255,191,63,.42); border-radius: 5px; overflow: hidden; }
@@ -126,6 +128,14 @@
     .verification strong { display: block; color: var(--good); font-size: .7rem; } .verification span { color: var(--muted); font-size: .61rem; }
     .confidence { color: var(--good); font-size: 1rem; font-weight: 800; }
     .audit { display: flex; align-items: center; justify-content: space-between; min-height: 35px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--muted); font-size: .67rem; }
+    .audit { flex-wrap:wrap; gap:8px; }
+    #trace-details { flex-basis:100%; width:100%; min-width:0; }
+    #trace-content { max-height:280px; overflow:auto; flex-basis:100%; width:100%; min-width:0; font-size:.65rem; line-height:1.5; }
+    .panel-head span { min-width:0; overflow-wrap:anywhere; max-width:65%; }
+    .graph-scroll svg.live-graph { height:auto; min-width:900px; max-height:480px; }
+    #graph-accessible { white-space:normal; margin:8px 12px; color:var(--muted); font-size:.7rem; }
+    #graph-accessible pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:230px; overflow:auto; }
+    #signals-content, #findings-content { padding:10px; font-size:.75rem; line-height:1.5; }
     .audit button { color: var(--cyan); } .audit strong { color: var(--text); }
     [hidden] { display: none !important; }
     .sr-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -141,7 +151,7 @@
     <header class="topbar">
       <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>NEXUS</div>
       <div class="context" aria-label="Run context">
-        <div class="context-item">Scenario<strong>storm-and-checkout-shift-v1</strong></div>
+        <div class="context-item">Scenario<strong id="scenario-name">storm-and-checkout-shift-v1</strong></div>
         <div class="context-item">Tenant<strong id="tenant-name">Authenticated tenant</strong></div>
         <div class="context-item">Run state<strong id="top-state">Representative preview</strong></div>
       </div>
@@ -157,7 +167,7 @@
       <span class="notice" id="connect-help">Held in memory for this page only; never placed in URLs or browser storage.</span>
     </section>
 
-    <main id="dashboard" tabindex="-1">
+    <div class="connect"><input id="run-reference" aria-label="Run ID" placeholder="Run ID"><select id="scenario-select" aria-label="Scenario"><option value="storm-and-checkout-shift-v1">Storm and Checkout Shift</option></select><button class="button" id="create-button">Create run</button><button class="button" id="disconnect-button">Clear identity</button><select id="demo-identity" aria-label="Local demo identity" hidden></select><span id="local-demo-banner" hidden>Academic local demo · synthetic evidence · persisted runs · simulated actions</span></div><main id="dashboard" tabindex="-1">
       <header class="workspace-head"><div><h1>Operational Shift</h1><p>Typed operational graph · model signals · multi-agent investigation · governed simulated action</p></div><div class="run-ref">Run reference<code id="run-id">018f0000-0000-7000-8000-000000000901</code></div></header>
 
       <section class="upper" aria-label="Graph and analytical signals">
@@ -174,20 +184,20 @@
               <g class="node node--risk"><rect x="15" y="185" width="98" height="50" rx="7"></rect><text class="type" x="26" y="204">DEPLOYMENT</text><text x="26" y="222">DEP-882</text></g><g class="node node--it"><rect x="250" y="185" width="102" height="50" rx="7"></rect><text class="type" x="261" y="204">SERVICE</text><text x="261" y="222">svc-checkout</text></g><g class="node node--it"><rect x="462" y="185" width="102" height="50" rx="7"></rect><text class="type" x="473" y="204">SERVICE</text><text x="473" y="222">svc-payments</text></g><g class="node node--it"><rect x="674" y="185" width="102" height="50" rx="7"></rect><text class="type" x="685" y="204">DATABASE</text><text x="685" y="222">db-ledger</text></g>
             </svg>
           </div>
-          <p class="graph-scroll-help" id="graph-scroll-instruction"><span aria-hidden="true">&#8596;</span> Scroll horizontally to inspect all graph nodes; arrow keys work when this panel is focused.</p>
+          <details id="graph-accessible" hidden><summary>Inspect evidence nodes and relationships</summary><pre id="graph-relationships"></pre></details><p class="graph-scroll-help" id="graph-scroll-instruction"><span aria-hidden="true">&#8596;</span> Scroll horizontally to inspect all graph nodes; arrow keys work when this panel is focused.</p>
           <div class="graph-foot"><span class="legend"><i></i>Supply path</span><span class="legend legend--it"><i></i>IT path</span><span>Read-only seeded projection · no authoritative ontology write</span></div>
-          <div class="uncertainty-bar"><span aria-hidden="true">△</span><strong>Correlated operational priority, not a proven causal link.</strong></div>
+          <div class="uncertainty-bar"><span aria-hidden="true">△</span><strong id="graph-uncertainty">Correlated operational priority, not a proven causal link.</strong></div>
         </article>
 
         <aside class="rail" aria-label="Risk, LLM, and uncertainty status">
-          <section class="rail-block"><div class="rail-title"><span>Risk signals</span><span>Deterministic</span></div><div class="signal"><div class="signal-top"><h3>Supply delay risk</h3><span class="score">0.91</span></div><div class="meter" aria-label="Supply risk 0.91, threshold 0.80"><i style="--score:91%"></i></div><p>Threshold 0.80 · PORT-MAA → SHP-0042 → CMP-SENSOR-A</p></div><div class="signal"><div class="signal-top"><h3>Incident risk</h3><span class="score">0.94</span></div><div class="meter" aria-label="Incident risk 0.94, threshold 0.80"><i style="--score:94%"></i></div><p>Threshold 0.80 · DEP-882 → svc-checkout → svc-payments</p></div></section>
+          <section class="rail-block"><div class="rail-title"><span>Risk signals</span><span>Deterministic</span></div><div id="signals-content"><div class="signal"><div class="signal-top"><h3>Supply delay risk</h3><span class="score">0.91</span></div><div class="meter" aria-label="Supply risk 0.91, threshold 0.80"><i style="--score:91%"></i></div><p>Threshold 0.80 · PORT-MAA → SHP-0042 → CMP-SENSOR-A</p></div><div class="signal"><div class="signal-top"><h3>Incident risk</h3><span class="score">0.94</span></div><div class="meter" aria-label="Incident risk 0.94, threshold 0.80"><i style="--score:94%"></i></div><p>Threshold 0.80 · DEP-882 → svc-checkout → svc-payments</p></div></div></section>
           <section class="rail-block"><div class="rail-title"><span>Advisory LLM status</span><span>Non-authoritative</span></div><div class="llm" id="llm-status" data-status="unavailable" aria-label="Advisory LLM status: unavailable"><i class="spinner" aria-hidden="true"></i><div><strong>Briefing advisor</strong><span id="llm-copy">Unavailable · deterministic fallback</span></div><code id="summary-digest">4f6d…e91b</code></div></section>
-          <section class="rail-block"><div class="rail-title"><span>Uncertainty</span><span>Persistent</span></div><div class="uncertainty">Evidence supports two elevated risks in one shift. It does not support a cross-domain causal conclusion.</div></section>
+          <p id="advisory-summary" class="uncertainty"></p><section class="rail-block"><div class="rail-title"><span>Uncertainty</span><span>Persistent</span></div><div class="uncertainty" id="uncertainty-content">Evidence supports two elevated risks in one shift. It does not support a cross-domain causal conclusion.</div></section>
         </aside>
       </section>
 
       <section class="lower" aria-label="Agent trace and governance">
-        <article class="panel"><header class="panel-head"><h2>Multi-agent investigation timeline</h2><span>4 activities · 11 evidence citations</span></header><ol class="timeline">
+        <article class="panel"><header class="panel-head"><h2>Multi-agent investigation timeline</h2><span id="activity-count">Representative activities</span></header><ol class="timeline" id="findings-content">
           <li><time>03:00:14</time><div class="agent"><span class="agent-dot">S</span>Supply analyst</div><div class="finding">Detected vessel delay risk for SHP-0042 at PORT-MAA; published model signal 0.91.</div><div class="evidence">Evidence<strong>3</strong></div></li>
           <li><time>03:00:18</time><div class="agent"><span class="agent-dot agent-dot--it">IT</span>IT analyst</div><div class="finding">Linked DEP-882 to checkout latency and the svc-payments dependency path; signal 0.94.</div><div class="evidence">Evidence<strong>4</strong></div></li>
           <li><time>03:00:23</time><div class="agent"><span class="agent-dot agent-dot--critic">C</span>Decision critic</div><div class="finding">Both thresholds are exceeded; marked cross-domain causality as unproven.</div><div class="evidence">Evidence<strong>2</strong></div></li>
@@ -195,14 +205,14 @@
         </ol></article>
 
         <aside class="governance" aria-label="R3 plan and outcome">
-          <section class="panel plan"><header class="panel-head"><h2>R3 human approval required</h2><span class="state tone-waiting" id="plan-state">Awaiting approval</span></header><div class="plan-body"><div class="plan-grid"><div><span class="rail-title" style="padding:0">Risk class</span><div class="risk-class">R3</div></div><div><span class="rail-title" style="padding:0">Immutable plan hash</span><code class="hash" id="plan-hash">8814a2fce863a6a334f323da9fa1ce4f5bdb7958be1fea618bef21d230110cca</code></div></div><p class="plan-summary">Simulate reroute of SHP-0042 via <code>sim://reroute/PORT-MAA</code>. IT response remains a separate recommendation.</p>
-            <div class="control-set" id="demo-controls"><button class="button" id="preview-awaiting" type="button" aria-pressed="true">Preview: awaiting</button><button class="button" id="preview-approved" type="button" aria-pressed="false">Preview: approved</button><button class="button" id="preview-verified" type="button" aria-pressed="false">Preview: verified</button></div>
+          <section class="panel plan"><header class="panel-head"><h2>R3 human approval required</h2><span class="state tone-waiting" id="plan-state">Awaiting approval</span></header><div class="plan-body"><div class="plan-grid"><div><span class="rail-title" style="padding:0">Risk class</span><div class="risk-class">R3</div></div><div><span class="rail-title" style="padding:0">Immutable plan hash</span><code class="hash" id="plan-hash">8814a2fce863a6a334f323da9fa1ce4f5bdb7958be1fea618bef21d230110cca</code></div></div><p class="plan-summary" id="plan-summary">Simulate reroute of SHP-0042 via <code>sim://reroute/PORT-MAA</code>. IT response remains a separate recommendation.</p>
+            <pre id="plan-options" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><div class="control-set" id="demo-controls"><button class="button" id="preview-awaiting" type="button" aria-pressed="true">Preview: awaiting</button><button class="button" id="preview-approved" type="button" aria-pressed="false">Preview: approved</button><button class="button" id="preview-verified" type="button" aria-pressed="false">Preview: verified</button></div>
             <div class="control-set" id="live-controls" hidden><button class="button button--primary" id="approve-button" type="button">Approve exact R3</button><button class="button button--danger" id="reject-button" type="button">Reject R3</button><button class="button" id="execute-button" type="button" disabled>Execute simulation</button></div>
             <div class="locked" id="locked-controls" hidden><strong>Governance controls unavailable.</strong> The connected run could not be verified. Representative data remains read-only; no approval, rejection, execution, or audit write can occur.</div>
             <p class="notice" id="action-notice" aria-live="polite">Guided preview only · no identity check · no persistence · no audit write.</p></div></section>
-          <section class="status-card" aria-label="Simulated action status"><div><span>Action</span><strong id="action-status">Not executed</strong></div><div><span>External connector</span><strong>Never invoked</strong></div><div><span>Expected impact</span><strong>14h improvement</strong></div></section>
+          <section class="status-card" aria-label="Simulated action status"><div><span>Action</span><strong id="action-status">Not executed</strong></div><div><span>External connector</span><strong>Never invoked</strong></div><div><span>Expected impact</span><strong id="expected-impact">14h representative improvement</strong></div></section>
           <section class="verification" id="verification-card"><span class="verify-icon" aria-hidden="true">—</span><div><strong id="verification-title">Verification not run</strong><span id="verification-copy">Preview the verified state to inspect the representative outcome.</span></div><span class="confidence" id="verification-confidence">—</span></section>
-          <section class="audit"><strong>Audit trail</strong><span id="audit-unavailable">Unavailable · no audit write</span><button class="button" id="audit-link" type="button" hidden>Inspect run events</button><span id="audit-result" hidden></span></section>
+          <section class="audit"><strong>Audit trail</strong><span id="audit-unavailable">Unavailable · no audit write</span><button class="button" id="audit-link" type="button" hidden>Inspect run events</button><span id="audit-result" hidden></span><details id="trace-details" hidden><summary>View ordered audit events</summary><pre id="trace-content"></pre></details></section>
         </aside>
       </section>
     </main>
@@ -234,12 +244,15 @@
         malformed: { status: "invalid_output", label: "invalid output", copy: "Invalid output · rejected; deterministic fallback" },
         uncited: { status: "uncited", label: "uncited output", copy: "Uncited output · rejected; deterministic fallback" }
       });
-      const connectedRun = new URLSearchParams(window.location.search).get("run");
+      let connectedRun = new URLSearchParams(window.location.search).get("run");
       const initialPreview = new URLSearchParams(window.location.search).get("preview");
       let mode = "demo";
+      let academicLocal = false;
       let run = fallback;
       let bearerToken = null;
       let mutationInFlight = false;
+      let generation = 0;
+      const invalidate = () => { generation += 1; mutationInFlight = false; const button = document.getElementById("create-button"); if (button) button.disabled = false; return generation; };
       const byId = (id) => document.getElementById(id);
       const setText = (id, value) => { const node = byId(id); if (node) node.textContent = String(value); };
       const announce = (value) => setText("live-region", value);
@@ -248,9 +261,9 @@
         mode = next; const notice = byId("mode-notice"); notice.dataset.mode = next;
         const titles = { demo: "Demo data / no audit write", loading: "Connecting / read-only until verified", live: "Governed run connected", unavailable: "Connected run unavailable / read-only" };
         const copies = { demo: "Representative fixture only. Guided state previews are non-authenticated, non-persistent, and never call governance endpoints.", loading: "Governance controls remain locked while the tenant-scoped run is verified.", live: "Authenticated tenant-scoped run loaded. Governance controls reflect the persisted state.", unavailable: detail || "The governed run could not be verified. Representative data is shown without any mutation or audit capability." };
-        setText("mode-title", titles[next]); setText("mode-copy", copies[next]);
+        setText("mode-title", academicLocal && next === "live" ? "Local academic run connected" : titles[next]); setText("mode-copy", academicLocal && next === "live" ? "Local demonstration identity · persisted synthetic evidence · simulated actions only. Full OIDC governance is available in the managed deployment." : copies[next]);
         show("demo-controls", next === "demo"); show("live-controls", next === "live"); show("locked-controls", next === "loading" || next === "unavailable");
-        show("audit-link", next === "live"); show("audit-unavailable", next !== "live"); if (next !== "live") show("audit-result", false);
+        show("audit-link", next === "live"); show("audit-unavailable", next !== "live"); if (next !== "live") show("audit-result", false); if (next !== "live") { setText("trace-content", ""); show("trace-details", false); byId("trace-details").open = false; }
       };
       const normalizeStatus = (status) => Object.prototype.hasOwnProperty.call(statusMap, status) ? status : "unknown";
       const renderStatus = (rawStatus) => {
@@ -258,7 +271,8 @@
         badge.textContent = meta.label; badge.className = "state " + meta.tone; setText("top-state", meta.label); setText("action-status", meta.action);
         const verified = status === "verified"; setText("verification-title", verified ? "Verified representative result" : status === "failed" ? "Verification failed" : "Verification not run");
         setText("verification-copy", verified ? "Simulated delay improves by 14 hours; no external connector was invoked." : status === "failed" ? "The simulated outcome did not satisfy its verification condition." : "No verified effect is claimed in this state.");
-        setText("verification-confidence", verified ? "0.92" : "—");
+        setText("verification-confidence", "—");
+        if (mode === "live") { const v = run.verification; setText("verification-title", verified && v ? "Verified simulation" : "Verification not run"); setText("verification-copy", verified && v ? "Baseline " + v.baseline_delay_hours + "h → final " + v.observed_delay_hours + "h; reduction " + v.delay_reduction_hours + "h. In-process simulation only." : "No verified effect is claimed in this state."); }
         const canApprove = mode === "live" && !mutationInFlight && status === "awaiting_approval"; const canExecute = mode === "live" && !mutationInFlight && status === "approved";
         byId("approve-button").disabled = !canApprove; byId("reject-button").disabled = !canApprove; byId("execute-button").disabled = !canExecute;
         ["preview-awaiting", "preview-approved", "preview-verified"].forEach((id) => byId(id).setAttribute("aria-pressed", String(id === "preview-" + (status === "awaiting_approval" ? "awaiting" : status))));
@@ -271,12 +285,25 @@
       };
       const applyRun = (value) => {
         if (!value || typeof value !== "object") throw new Error("invalid run response"); run = value;
-        setText("run-id", value.run_id || fallback.run_id); setText("tenant-name", value.tenant_name || fallback.tenant_name); setText("seed-digest", "seed " + (value.seed_digest || fallback.seed_digest) + " · 12 nodes");
+        setText("run-id", value.run_id || fallback.run_id); setText("tenant-name", academicLocal && mode === "live" ? "Local demonstration tenant" : value.tenant_name || fallback.tenant_name); setText("seed-digest", "seed " + (value.seed_digest || fallback.seed_digest) + " · 12 nodes");
         const plan = value.plan && typeof value.plan === "object" ? value.plan : {}; if (mode === "live" && !isPlanHash(plan.plan_hash)) throw new Error("invalid immutable plan hash"); setText("plan-hash", isPlanHash(plan.plan_hash) ? plan.plan_hash : fallback.plan.plan_hash);
         const llm = value.llm && typeof value.llm === "object" ? value.llm : fallback.llm; renderLlmStatus(llm.provider_status); setText("summary-digest", String(llm.summary_sha256 || fallback.llm.summary_sha256).replace("sha256:", "").slice(0,4) + "…" + String(llm.summary_sha256 || fallback.llm.summary_sha256).slice(-4));
+        if (mode === "live") {
+          setText("scenario-name", value.scenario_id || "Unknown scenario");
+          setText("activity-count", (value.findings || []).length + " specialist findings");
+          setText("uncertainty-content", (value.findings || []).map(x => x.uncertainty_code).join(" · ") || "No findings returned.");
+          setText("graph-uncertainty", "Seeded operational evidence; association does not prove causation.");
+          setText("signals-content", (value.signals || []).map(x => x.domain + ": " + x.score + " / threshold " + x.threshold + " · " + x.model_version + " · " + x.target_id + "\nFeatures: " + JSON.stringify(x.feature_map) + "\nEvidence: " + (x.evidence_node_ids || []).join(", ")).join("\n\n") || "No signals returned.");
+          setText("findings-content", (value.findings || []).map(x => x.agent_role + " · " + x.status + " · " + x.finding_code + "\n" + x.uncertainty_code + "\nEvidence: " + (x.evidence_node_ids || []).join(", ")).join("\n\n"));
+          setText("advisory-summary", llm.summary || "No advisory text recorded.");
+          setText("plan-summary", "Simulate " + (plan.action_kind || "action") + " for " + (plan.target_id || "—") + " via " + (plan.destination || "—") + ". " + (plan.expected_effect || ""));
+          setText("plan-options", (plan.options || []).map(x => x.option_id + ": projected final delay " + x.projected_delay_hours + "h; reduction " + x.delay_reduction_hours + "h").join("\n"));
+          setText("expected-impact", Number.isFinite(plan.expected_delay_reduction_hours) ? plan.expected_delay_reduction_hours + "h predicted reduction" : "No expected reduction returned");
+          setText("seed-digest", "seed " + (value.seed_digest || "unknown"));
+        }
         renderStatus(value.status || plan.status || "unknown");
       };
-      const enterUnavailable = (message) => { bearerToken = null; setMode("unavailable", message); run = fallback; applyRun(fallback); renderStatus("unavailable"); setText("run-id", "representative fixture · requested " + connectedRun); setText("action-notice", "Read-only degraded state. Governance endpoints will not be retried from this page."); announce("Connected run unavailable. All governance controls are locked."); };
+      const enterUnavailable = (message) => { invalidate(); bearerToken = null; setMode("unavailable", message); run = fallback; applyRun(fallback); renderStatus("unavailable"); setText("run-id", "representative fixture · requested " + connectedRun); setText("action-notice", "Read-only degraded state. Governance endpoints will not be retried from this page."); announce("Connected run unavailable. All governance controls are locked."); };
       const idempotency = () => "prototype-ui-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,8);
       const authorizedFetch = (path, options = {}) => { if (!bearerToken) throw new Error("connection required"); const headers = Object.assign({}, options.headers || {}, { Authorization: "Bearer " + bearerToken }); return fetch(path, Object.assign({}, options, { headers })); };
       const request = async (path, body, planHash) => { if (!isPlanHash(planHash)) throw new Error("invalid immutable plan hash"); const response = await authorizedFetch(path, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotency(), "If-Match": "\"" + planHash + "\"" }, body: JSON.stringify(body) }); if (!response.ok) throw new Error("governance unavailable"); return response.json(); };
@@ -284,19 +311,78 @@
         if (mode !== "live" || mutationInFlight) return;
         const status = currentStatus(); if (status !== expectedStatus) { renderStatus(status); announce("Stale governance control ignored. Current run state is " + statusMap[status].label + "."); return; }
         const planHash = run && run.plan && run.plan.plan_hash; if (!isPlanHash(planHash)) { enterUnavailable("The connected immutable plan hash is absent or invalid. No governance request was sent."); return; }
+        const active = generation; const activeRun = run.run_id;
         mutationInFlight = true; renderStatus(status); setText("action-notice", "Submitting exact-hash governed request…");
-        try { const updated = await request(path, body(planHash), planHash); applyRun(updated); setText("action-notice", successNotice); announce(successAnnouncement); }
-        catch { enterUnavailable("The governance service rejected or could not complete the request. Controls are locked and no success is implied."); }
-        finally { mutationInFlight = false; if (mode === "live") renderStatus(currentStatus()); }
+        try { const updated = await request(path, body(planHash), planHash); if (active !== generation || activeRun !== run.run_id) return; applyRun(updated); setText("action-notice", successNotice); announce(successAnnouncement); }
+        catch { if (active !== generation || activeRun !== run.run_id) return; enterUnavailable("The governance service rejected or could not complete the request. Controls are locked and no success is implied."); }
+        finally { if (active === generation && activeRun === run.run_id) { mutationInFlight = false; if (mode === "live") renderStatus(currentStatus()); } }
       };
       const preview = (status) => { if (mode !== "demo") return; renderStatus(status); setText("action-notice", "Previewing “" + statusMap[status].label + "” · no identity check · no persistence · no audit write."); announce("Representative preview state: " + statusMap[status].label + ". No audit write."); };
       byId("preview-awaiting").addEventListener("click", () => preview("awaiting_approval")); byId("preview-approved").addEventListener("click", () => preview("approved")); byId("preview-verified").addEventListener("click", () => preview("verified"));
-      byId("connect-button").addEventListener("click", async () => { const input = byId("bearer-token"); const captured = String(input.value || ""); input.value = ""; if (!connectedRun || !captured) { announce("A run reference and ephemeral bearer token are required."); return; } bearerToken = captured; setMode("loading"); renderStatus("loading"); try { const response = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(connectedRun)); if (!response.ok) throw new Error("run unavailable"); const value = await response.json(); setMode("live"); applyRun(value); announce("Governed run connected."); } catch { enterUnavailable("The requested governed run could not be authenticated or loaded. Representative data is shown read-only."); } });
-      byId("audit-link").addEventListener("click", async () => { if (mode !== "live" || !bearerToken) return; try { const response = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/trace"); if (!response.ok) throw new Error("audit unavailable"); const trace = await response.json(); if (!trace || !Array.isArray(trace.events)) throw new Error("invalid audit response"); setText("audit-result", String(trace.events.length) + " integrity-chained run events available."); show("audit-result", true); announce("Run audit summary loaded."); } catch { setText("audit-result", "Audit summary unavailable."); show("audit-result", true); announce("Run audit summary unavailable."); } });
+      const captureToken = () => { const input = byId("bearer-token"); if (input.value) bearerToken = String(input.value); input.value = ""; };
+      const renderGraph = (graph) => {
+        const description = graph.nodes.map(n => n.id + " · " + n.type + " · " + n.label).join("\n") + "\nRelationships\n" + graph.edges.map(e => e.source + " → " + e.type + " → " + e.target).join("\n");
+        setText("graph-relationships", description); show("graph-accessible", true);
+        if (!document.createElementNS) { setText("graph-scroll", description); return; }
+        const ns = "http://www.w3.org/2000/svg";
+        const element = (tag, attrs, content) => { const node = document.createElementNS(ns, tag); Object.entries(attrs || {}).forEach(([key,value]) => node.setAttribute(key,String(value))); if (content !== undefined) node.textContent = String(content); return node; };
+        const facts = graph.nodes.filter(n => n.type === "ScenarioInput");
+        const nodes = graph.nodes.filter(n => n.type !== "ScenarioInput");
+        const levels = new Map(nodes.map(n => [n.id,0]));
+        // Bound traversal also handles an unexpected cycle without blocking rendering.
+        for (let pass = 0; pass < nodes.length; pass += 1) {
+          let changed = false;
+          graph.edges.forEach(e => { if (!levels.has(e.source) || !levels.has(e.target)) return; const next = Math.min(nodes.length - 1, levels.get(e.source) + 1); if (next > levels.get(e.target)) { levels.set(e.target,next); changed = true; } });
+          if (!changed) break;
+        }
+        const columns = Math.max(1,...levels.values()) + 1; const width = Math.max(1120,columns * 225 + 20);
+        const slots = new Map(); const positions = new Map();
+        nodes.forEach(n => { const domain = ["Deployment","Service","Database"].includes(n.type) ? "it" : n.type === "OperationalShift" ? "shared" : "supply"; const level = levels.get(n.id); const key = domain + level; const index = slots.get(key) || 0; slots.set(key,index + 1); positions.set(n.id,{x:20+level*225,y:(domain === "it" ? 350 : domain === "shared" ? 205 : 55)+index*90,domain}); });
+        const bottom = Math.max(430,...[...positions.values()].map(p => p.y+85)); const height = bottom + (facts.length ? Math.ceil(facts.length/3)*85+35 : 15);
+        const svg = element("svg",{viewBox:"0 0 " + width + " " + height,class:"live-graph",role:"img","aria-label":"Dynamic typed graph with " + graph.nodes.length + " evidence nodes and " + graph.edges.length + " relationships"});
+        const title = element("title",{},"Run evidence graph"); svg.appendChild(title);
+        const defs = element("defs"); const marker = element("marker",{id:"live-arrow",viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:5,markerHeight:5,orient:"auto-start-reverse"}); marker.appendChild(element("path",{d:"M 0 0 L 10 5 L 0 10 z",fill:"#779da6"})); defs.appendChild(marker); svg.appendChild(defs);
+        graph.edges.forEach(e => { const from=positions.get(e.source),to=positions.get(e.target); if (!from || !to) return; const startX=from.x+190,startY=from.y+31,endX=to.x,endY=to.y+31; svg.appendChild(element("path",{d:"M"+startX+" "+startY+" C"+(startX+18)+" "+startY+" "+(endX-18)+" "+endY+" "+endX+" "+endY,fill:"none",stroke:to.domain === "it" ? "#67a4ff" : "#64e0de","stroke-opacity":.5,"stroke-width":1.5,"marker-end":"url(#live-arrow)"})); });
+        nodes.forEach(n => { const p=positions.get(n.id); const group=element("g"); group.appendChild(element("rect",{x:p.x,y:p.y,width:190,height:64,rx:7,fill:"#0d2933",stroke:p.domain === "it" ? "#4874a9" : "#386a70"})); group.appendChild(element("text",{x:p.x+10,y:p.y+18,fill:"#e5efed","font-size":11,"font-weight":700},n.id)); group.appendChild(element("text",{x:p.x+10,y:p.y+34,fill:"#9cb3b6","font-size":9},n.type)); group.appendChild(element("text",{x:p.x+10,y:p.y+51,fill:"#bfd0d0","font-size":10},n.label.length > 29 ? n.label.slice(0,28)+"…" : n.label)); group.appendChild(element("title",{},n.id + " · " + n.type + " · " + n.label)); svg.appendChild(group); });
+        if (facts.length) svg.appendChild(element("text",{x:20,y:bottom+8,fill:"#ffbf3f","font-size":12,"font-weight":700},"SCENARIO FACTS"));
+        facts.forEach((n,i) => { const x=20+(i%3)*(width/3),y=bottom+20+Math.floor(i/3)*85; svg.appendChild(element("rect",{x,y,width:width/3-30,height:58,rx:6,fill:"#112f39",stroke:"#54727a"})); svg.appendChild(element("text",{x:x+12,y:y+22,fill:"#e5efed","font-size":12},n.label)); svg.appendChild(element("text",{x:x+12,y:y+42,fill:"#9cb3b6","font-size":9},n.id)); });
+        const container=byId("graph-scroll"); container.textContent=""; container.appendChild(svg); show("graph-scroll-instruction", true);
+      };
+      const loadGraph = async () => {
+        const active = generation; const activeRun = run.run_id;
+        show("graph-accessible", false); show("graph-scroll-instruction", false); setText("graph-scroll", "Loading evidence…"); byId("graph-scroll").setAttribute("aria-label", "Run evidence nodes and typed relationships");
+        try { const r = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/graph"); if (!r.ok) throw Error(); const g = await r.json(); if (active !== generation || activeRun !== run.run_id) return; if (!Array.isArray(g.nodes) || !Array.isArray(g.edges)) throw Error(); renderGraph(g); setText("seed-digest", "seed " + g.seed_digest + " · " + g.nodes.length + " nodes"); } catch { if (active === generation && activeRun === run.run_id) setText("graph-scroll", "Run graph unavailable."); }
+      };
+      const connectRun = async () => {
+        const active = invalidate(); setMode("loading"); renderStatus("loading");
+        captureToken(); connectedRun = String(byId("run-reference").value || connectedRun || "").trim();
+        if (bearerToken) await loadCatalog();
+        if (active !== generation) return;
+        if (!connectedRun || !bearerToken) { announce("A run reference and ephemeral bearer token are required."); return; }
+        setMode("loading"); renderStatus("loading"); try { const r = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(connectedRun)); if (!r.ok) throw Error(); const value = await r.json(); if (active !== generation) return; setMode("live"); applyRun(value); await loadGraph(); } catch { if (active !== generation) return; enterUnavailable("Run could not be authenticated or loaded. Controls locked."); }
+      };
+      byId("run-reference").value = connectedRun || "";
+      byId("connect-button").addEventListener("click", connectRun);
+      byId("disconnect-button").addEventListener("click", () => { invalidate(); bearerToken = null; byId("bearer-token").value = ""; byId("demo-identity").value = ""; setMode("unavailable", "Identity cleared. Reconnect to continue."); renderStatus("unavailable"); });
+      byId("create-button").addEventListener("click", async () => {
+        if (mutationInFlight) return; const active = invalidate(); captureToken(); if (!bearerToken) { announce("Select an identity or enter a bearer token."); return; }
+        mutationInFlight = true; byId("create-button").disabled = true;
+        try { const r = await authorizedFetch("/api/v1/prototype/runs", {method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":idempotency()},body:JSON.stringify({scenario_id:byId("scenario-select").value})}); if (!r.ok) throw Error(); const value = await r.json(); if (active !== generation) return; connectedRun = value.run_id; byId("run-reference").value = connectedRun; setMode("live"); applyRun(value); await loadGraph(); } catch { if (active !== generation) return; enterUnavailable("Run creation failed. Select an authorized identity and retry."); } finally { if (active === generation) { mutationInFlight = false; byId("create-button").disabled = false; if (mode === "live") renderStatus(currentStatus()); } }
+      });
+      const loadCatalog = async () => {
+        if (!bearerToken) return;
+        const active = generation;
+        try { const r = bearerToken ? await authorizedFetch("/api/v1/prototype/scenarios") : await fetch("/api/v1/prototype/scenarios"); if (r.ok) { const catalog = await r.json(); if (active !== generation) return; const select = byId("scenario-select"); const previous = select.value; select.textContent = ""; catalog.scenarios.forEach(x => { const o = document.createElement("option"); o.value = x.scenario_id; o.textContent = x.title; o.title = x.description; select.appendChild(o); }); if (catalog.scenarios.some(x => x.scenario_id === previous)) select.value = previous; } } catch {}
+      };
+      const initialize = async () => {
+        const active = generation; await loadCatalog();
+        try { const r = await fetch("/api/v1/prototype/demo-session"); if (!r.ok) return; const session = await r.json(); if (active !== generation) return; if (session.mode !== "academic_local" || !Array.isArray(session.identities)) return; academicLocal = true; show("local-demo-banner", true); show("demo-identity", true); const select = byId("demo-identity"); const empty = document.createElement("option"); empty.value = ""; empty.textContent = "Choose local identity"; select.appendChild(empty); session.identities.forEach((x,i) => { const o = document.createElement("option"); o.value = String(i); o.textContent = x.label + " · " + x.role; select.appendChild(o); }); select.addEventListener("change", async () => { const active = invalidate(); setMode("loading"); renderStatus("loading"); const identity = session.identities[Number(select.value)]; bearerToken = select.value !== "" && identity ? identity.token : null; byId("bearer-token").value = ""; if (bearerToken) await loadCatalog(); if (active !== generation) return; if (bearerToken && connectedRun) await connectRun(); else { setMode("unavailable", bearerToken ? "Local identity selected. Create a scenario run." : "Identity cleared."); renderStatus("unavailable"); } }); } catch {}
+      };
+      byId("audit-link").addEventListener("click", async () => { if (mode !== "live" || !bearerToken) return; const active = generation; const activeRun = run.run_id; try { const response = await authorizedFetch("/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/trace"); if (!response.ok) throw new Error("audit unavailable"); const trace = await response.json(); if (active !== generation || activeRun !== run.run_id) return; if (!trace || !Array.isArray(trace.events)) throw new Error("invalid audit response"); show("trace-details", true); setText("trace-content", trace.events.map(e => "#" + e.sequence + " · " + e.event_type + " · " + (e.occurred_at || "") + " · " + (e.hash || "")).join("\n")); setText("audit-result", String(trace.events.length) + " integrity-chained run events available."); show("audit-result", true); announce("Run audit summary loaded."); } catch { if (active !== generation || activeRun !== run.run_id) return; setText("audit-result", "Audit summary unavailable."); show("audit-result", true); announce("Run audit summary unavailable."); } });
       byId("approve-button").addEventListener("click", () => mutate({ expectedStatus: "awaiting_approval", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/approval", body: (planHash) => ({ plan_hash: planHash, decision: "approve" }), successNotice: "Authenticated exact-hash approval recorded; the returned run state is current.", successAnnouncement: "Exact R3 plan approval response applied." }));
       byId("reject-button").addEventListener("click", () => mutate({ expectedStatus: "awaiting_approval", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/approval", body: (planHash) => ({ plan_hash: planHash, decision: "reject", reason: "operator_rejected" }), successNotice: "Authenticated rejection returned a terminal run state.", successAnnouncement: "R3 plan rejection response applied." }));
       byId("execute-button").addEventListener("click", () => mutate({ expectedStatus: "approved", path: "/api/v1/prototype/runs/" + encodeURIComponent(run.run_id) + "/execute", body: (planHash) => ({ plan_hash: planHash }), successNotice: "Prototype API returned the current simulated execution and verification state. No external connector was invoked.", successAnnouncement: "Simulated execution response applied." }));
-      applyRun(fallback); setMode(mode);
+      applyRun(fallback); setMode(mode); initialize();
       if (!connectedRun && ["awaiting_approval", "approved", "verified"].includes(initialPreview)) preview(initialPreview);
       const root = document.documentElement; document.body.dataset.horizontalOverflow = String(root.scrollWidth > root.clientWidth + 1); document.body.dataset.viewportWidth = String(window.innerWidth);
     })();

@@ -24,8 +24,12 @@ from nexus_api.prototype.models import (
     PrototypeRunView,
     PrototypeTrace,
 )
-from nexus_api.prototype.orchestrator import AdvisoryFacade, PrototypeOrchestrator
-from nexus_api.prototype.seed import build_prototype_graph
+from nexus_api.prototype.orchestrator import (
+    AdvisoryFacade,
+    PrototypeOrchestrator,
+    calculate_verification,
+)
+from nexus_api.prototype.seed import build_projection
 from nexus_api.prototype.store import PrototypeStateError, PrototypeStore
 
 
@@ -150,7 +154,7 @@ class PrototypeController:
                     raise PrototypeConflict()
                 return view
 
-        graph = build_prototype_graph()
+        graph = build_projection(request.scenario_id)
         result = await self._orchestrator.run(
             graph, context=context, idempotency_key=idempotency_key
         )
@@ -215,6 +219,7 @@ class PrototypeController:
                         "prototype.briefing.generated",
                         {
                             "provider_status": result.advisory.provider_status,
+                            "summary": result.advisory.summary,
                             "summary_sha256": result.advisory.summary_sha256,
                             "citation_node_ids": list(result.advisory.citation_node_ids),
                             "model_id": result.advisory.model_id,
@@ -273,8 +278,8 @@ class PrototypeController:
         return view
 
     async def get_graph(self, context: RequestContext, run_id: UUID7) -> PrototypeGraph:
-        await self.get_run(context, run_id)
-        return build_prototype_graph()
+        view = await self.get_run(context, run_id)
+        return build_projection(view.scenario_id)
 
     async def get_trace(self, context: RequestContext, run_id: UUID7) -> PrototypeTrace:
         _require_authorized(
@@ -449,7 +454,15 @@ class PrototypeController:
                     "receipt_id": receipt,
                     "status": "verified",
                     "verified_effect": "delay_reduced",
-                    "observed_delay_hours": 14.0,
+                    "baseline_delay_hours": calculate_verification(
+                        current.plan, receipt
+                    ).baseline_delay_hours,
+                    "observed_delay_hours": calculate_verification(
+                        current.plan, receipt
+                    ).observed_delay_hours,
+                    "delay_reduction_hours": calculate_verification(
+                        current.plan, receipt
+                    ).delay_reduction_hours,
                     "policy_operation": "action.execute",
                 },
                 _command_key(idempotency_key, "verification"),

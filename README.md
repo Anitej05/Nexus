@@ -2,8 +2,8 @@
 
 NEXUS is a bounded operational-intelligence prototype that connects a typed business graph,
 deterministic risk signals, concurrent specialist agents, a non-authoritative LLM briefing, and
-human approval for a simulated high-risk action. The current demonstration follows one frozen
-cross-domain scenario: a Chennai port disruption and an overlapping checkout incident.
+human approval for a simulated high-risk action. Four controlled scenarios cover an overlapping
+Chennai port and checkout incident, stable supply, an IT-heavy incident and a supply-heavy disruption.
 
 The repository is public for evaluation and collaboration. It is not a hosted service or a
 production deployment.
@@ -13,16 +13,47 @@ production deployment.
 | Capability | Current implementation |
 |---|---|
 | Operational graph | Seeded, typed, read-only projection with supply-chain and IT entities |
-| Risk signals | Deterministic demonstration scorers with fixed versions, features, thresholds, and evidence |
+| Risk signals | Versioned rule-based scores calculated from scenario inputs with cited graph evidence |
 | Agent orchestration | Two specialist analyses fan out concurrently, followed by a decision critic |
-| Generative AI | Bounded OpenAI-compatible advisory with structured output, evidence citations, and safe fallback |
+| Generative AI | Bounded readable advisory with validated citations, output screening and a fact-only fallback |
 | Governance | Tenant-scoped authorization, exact-plan approval, optimistic preconditions, and append-only audit evidence |
 | Action | R3 shipment reroute simulation only; no external connector is invoked |
-| Verification | Deterministic representative outcome, evidence artifact, and dashboard screenshot |
+| Verification | Calculated baseline/final delay comparison, persisted evidence and reproducible evaluation |
 
 The specialist agents do not learn online, the graph is not an authoritative Neo4j ontology, and
-the two fixed signal values are not live forecasts. The LLM cannot change scores, policy, action
+the risk indices are not live forecasts or calibrated probabilities. The LLM cannot change scores, policy, action
 parameters, approval state, or execution state. These are deliberate prototype boundaries.
+
+## Run the complete academic demonstration
+
+Requires Python 3.11.9 and `uv`. Docker, Node.js and an LLM endpoint are optional for this mode.
+
+```powershell
+uv sync --all-packages --frozen
+uv run python scripts/run_academic_demo.py
+```
+
+Open <http://127.0.0.1:8080/prototype>. Choose **Analyst / proposer**, select a scenario and
+create a run. Switch to **Independent approver** to approve or reject the exact plan, then
+switch back to the proposer to execute the simulation. Inspect the graph evidence, readable
+advisory, comparison options, calculated outcome and audit history. SQLite preserves runs
+across restarts in the ignored `artifacts/academic-demo.sqlite3` file.
+
+This mode binds only to loopback. Its public demonstration role selectors are deliberately
+different from the separately authenticated Keycloak/OPA deployment. It shares the same scenario,
+scoring, orchestration and simulation code; it does not call external action connectors.
+The reroute model assumes a 50% delay reduction, which is a simulation assumption, not an
+observed improvement in a real port.
+
+For optional live advisory integration, configure the endpoint described below and add `--live-llm`.
+Provider failures retain the fact-only workflow. The academic evaluation does not require an LLM:
+
+```powershell
+uv run python scripts/evaluate_academic.py --repetitions 5 --markdown docs/EVALUATION.md
+```
+
+Read the [user guide and demonstration script](docs/ACADEMIC_GUIDE.md),
+[technical project report](docs/ACADEMIC_REPORT.md) and [executed evaluation](docs/EVALUATION.md).
 
 ## Architecture
 
@@ -42,13 +73,13 @@ seeded events -> typed projection -> deterministic signals
                               simulated execution + audit chain
 ```
 
-PostgreSQL is authoritative for governed state and the append-only audit chain. OPA makes
+In the full governed deployment, PostgreSQL is authoritative for state and the append-only audit chain. OPA makes
 authorization decisions, Keycloak supplies local test identities, and the dashboard presents the
 result. Neo4j, Redpanda, Temporal, MinIO, Redis, OpenTelemetry, Prometheus, Grafana, and MLflow are
 included in the broader local-development stack; the bounded prototype does not claim to exercise
 all of them end to end.
 
-## Prerequisites
+## Full governed deployment prerequisites
 
 - Git
 - Python 3.11.9 and [`uv`](https://docs.astral.sh/uv/)

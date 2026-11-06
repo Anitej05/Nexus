@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID
@@ -287,6 +288,16 @@ class StructuredAdvisoryFacade:
             provider_status="available",
             model_id=self._model_id,
             prompt_version=self._prompt_version,
+            summary=(
+                result.conclusion
+                if len(result.conclusion) <= 1000
+                and not re.search(
+                    r"[<>\x00-\x1f]|(?i:api[_ -]?key|bearer\s+|password|secret|token|"
+                    r"sk-[a-z0-9]|eyJ[a-z0-9_-]{10,}\.)",
+                    result.conclusion,
+                )
+                else None
+            ),
             summary_sha256=hashlib.sha256(result.conclusion.encode()).hexdigest(),
             citation_node_ids=tuple(
                 node.id for node in graph.nodes if node.id in set(citation_nodes)
